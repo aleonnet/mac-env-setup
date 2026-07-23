@@ -4,39 +4,41 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-Single-file project: `mac_env_install.sh` — a self-contained Bash bootstrap installer for a macOS dev environment (Xcode CLT, Homebrew, iTerm2, Oh My Zsh, Powerlevel10k, zsh plugins, pyenv, eza, MesloLGS Nerd Font v3, generated `~/.zshrc`). All comments and console output are Brazilian Portuguese — keep new comments and UI strings in Portuguese.
+Single-file project: `mac_env_install.sh` — a category-based macOS dev-environment installer in Bash with an interactive selector (gum) and the "Event Horizon" amber art direction. All comments and console output are Brazilian Portuguese — keep new comments and UI strings in Portuguese.
 
-The script is distributed for remote execution from the `main` branch:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/aleonnet/mac-env-setup/main/mac_env_install.sh | bash -s -- --verbose
-```
-
-It must therefore stay **pipe-safe**: no `read`, no interactive prompts, no `sudo`. TTY-dependent behavior (gum UI) must keep its non-TTY fallback.
-
-## Running
+Distributed for remote execution from the `main` branch:
 
 ```bash
-bash mac_env_install.sh [--verbose|-v]   # --verbose streams output instead of temp logs
+curl -fsSL https://raw.githubusercontent.com/aleonnet/mac-env-setup/main/mac_env_install.sh | bash -s -- [--profile dev|--dry-run|...]
 ```
 
-Environment toggles: `MACENV_USE_GUM` (auto/1/0), `MACENV_GUM_VERSION` (default 0.17.0), `NO_COLOR`.
+**Bash 3.2 constraint**: the script runs under macOS system `/bin/bash` — no `declare -A`, no `readarray`, no `${var,,}`. Test with `/bin/bash`, never only Homebrew bash.
 
-No build/test/lint tooling exists. Validate edits with `bash -n mac_env_install.sh` (and `shellcheck` if available).
+## Running / testing
+
+```bash
+bash mac_env_install.sh --list                      # catalog
+bash mac_env_install.sh --dry-run --profile dev     # plan without installing
+cat mac_env_install.sh | /bin/bash -s -- --dry-run --profile completo   # pipe-safety check
+bash -n mac_env_install.sh                          # syntax (also run shellcheck if available)
+```
+
+Flags: `--profile completo|terminal|dev|mobile`, `--categories a,b,c`, `--all`, `--yes`, `--dry-run`, `--list`, `--verbose`. Env: `MACENV_USE_GUM`, `MACENV_GUM_VERSION`, `NO_COLOR`. Never run a real install during development — `--dry-run` only; config generation can be tested against a fake `$HOME` (source the script minus the final `parse_args`/`main` lines).
 
 ## Architecture
 
-Entry point is `main()` at the bottom of the file; execution order: detect macOS/arch (sets `BREW_PREFIX`: `/opt/homebrew` on arm64, `/usr/local` on Intel) → Xcode CLT gate → 4 UI stages: [1] Homebrew → [2] iTerm2, Oh My Zsh, zsh plugins, pyenv, eza → [3] Nerd Font → [4] write `.zshrc` + p10k.
+Flow in `main()`: gum bootstrap → banner → `resolve_selection` (flags headless, else gum selector via `/dev/tty`) → `compute_stages` → manifest + confirm → CLT gate (exits 0 asking re-run) → stage Base (Homebrew) → one stage per selected category (`run_category` → `run_item`) → stage Configurações (`.zshrc` + starship/p10k + ghostty config, only when the `terminal` category is selected) → `print_final_report`.
 
-Conventions every change must respect:
+**Data model** (Bash 3.2): `CATEGORY_DB` and `ITEM_DB` are indexed arrays of `|`-delimited records (`id|categoria|rótulo|padrão`). Item id maps to its function by convention: `install_${id//-/_}`. `ITEM_DB` record order = execution order within a category. Selection state lives in space-separated strings (`SELECTED_ITEMS`, `SELECTED_CATEGORIES`) with `item_selected`/`select_item` helpers; mutually exclusive choices in scalars `PROMPT_ACTIVE` (starship|p10k) and `TERMINAL_CHOICE`.
 
-- **Idempotency**: each `install_*` function checks presence first and early-returns ("já instalado"). The script must remain safe to re-run. Deliberate exception: `install_meslo_nerd_font` always upgrades and removes legacy v2.3.3 font files (incompatible glyphs).
-- **CLT gate**: if Xcode CLT is missing, the script launches the GUI installer and exits 0 — the user re-runs afterward. Everything downstream assumes CLT and brew exist.
-- **`ensure_brew_in_path()`** is called at the start of every brew-dependent function (shell state can't be assumed).
-- **UI layer**: user-facing output goes through `ui_info`/`ui_warn`/`ui_success`/`ui_error`/`ui_section` — gum when available (fetched to a temp dir with SHA256 verification, never installed permanently), ANSI echo fallback otherwise. Don't call `echo` directly for user-facing messages.
-- **Quiet steps**: wrap installation work in `run_quiet_step` (logs to a temp file, dumps the last 80 lines on failure; bypassed by `--verbose`).
-- **Temp files**: create via `mktempfile()` so the EXIT trap cleans them up.
-- **Downloads**: use `download_file()` (HTTPS-pinned curl/wget with retries).
-- **`.zshrc` generation**: `write_zshrc` backs up the existing file to `~/.zshrc.backup.<timestamp>` then **overwrites** (not appends) from a heredoc template; zsh-syntax-highlighting must stay sourced last.
+## Conventions every change must respect
+
+- **Install function contract**: return `0` = installed now, `100` = already present (skip), `1` = failed. Presence check first. Every critical command ends with `|| return 1` — errexit is OFF inside `"$fn" || rc=$?` in `run_item`, so unguarded failures are silently swallowed. Item failure must not abort the run.
+- **Pipe-safety**: interactivity ONLY through gum reading `< /dev/tty` (`gum_choose_tty`/`gum_confirm_tty`); never raw `read`, never global `exec </dev/tty`, no `sudo`. Every interactive path needs a headless fallback (default profile + warning). Esc/Ctrl-C → exit 130.
+- **Casks with manually installed apps**: double check `[[ -d /Applications/X.app ]] || brew list --cask x` (Docker also checks legacy cask `docker` besides `docker-desktop`).
+- **UI layer**: user-facing output via `ui_info/ui_warn/ui_success/ui_error/ui_done/ui_skip/ui_stage` — gum messages need `--` before the text (messages starting with `-` break gum's flag parsing). Installation work wrapped in `run_quiet_step` (temp-file logs, last 80 lines on failure). Temp files via `mktempfile()`; downloads via `download_file()`.
+- **Art direction (Event Horizon)**: amber `#f5b000` signature; blackbody ramp in `BLACKBODY_STOPS` drives `gradient_text`/`rule_gradient`/`progress_orbit_line`/banner. Installer UI must use only universal Unicode (`╭─◆◇▰▱█▓░❯✓`) — Nerd Fonts aren't installed yet when it runs. Everything degrades: gum → plain ANSI → `NO_COLOR`/non-TTY plain text. gum theme is centralized in `apply_gum_theme` (env vars).
+- **Generated configs**: `backup_and_install_file` (timestamped backup + overwrite) for `.zshrc` (composed from `zshrc_block_*` conditionals; zsh-syntax-highlighting stays last plugin, prompt init last line) and `starship.toml`. Ghostty config is never overwritten if it exists. `~/.p10k.zsh` is never touched.
+- **`ensure_brew_in_path()`** at the start of every brew-dependent function.
 
 When behavior changes, update `README.md` and add a `CHANGELOG.md` entry.

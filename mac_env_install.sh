@@ -1,22 +1,35 @@
 #!/bin/bash
 # =============================================================================
-# Mac Environment Installer v2 - zsh + iTerm2 + dev tools + eza (ls com ícones)
-# Uso local:  bash mac_env_install.sh [--verbose]
-# Uso remoto: curl -fsSL https://raw.githubusercontent.com/aleonnet/mac-env-setup/main/mac_env_install.sh | bash -s -- --verbose
-# Requer: macOS (Apple Silicon ou Intel)
-# Diferença da v1: instala eza e configura alias ls -> eza --icons no .zshrc
+# Mac Environment Installer v3 — instalador por categorias com seletor
+# Uso local:  bash mac_env_install.sh [opções]
+# Uso remoto: curl -fsSL https://raw.githubusercontent.com/aleonnet/mac-env-setup/main/mac_env_install.sh | bash -s -- [opções]
+# Opções:     --profile completo|terminal|dev|mobile · --categories a,b,c
+#             --all · --yes · --dry-run · --list · --verbose · --help
+# Requer:     macOS (Apple Silicon ou Intel)
 # =============================================================================
 set -euo pipefail
 
-# Cores e UI (estilo openclaw_install.sh)
-BOLD='\033[1m'
-ACCENT='\033[38;2;255;77;77m'
-INFO='\033[38;2;136;146;176m'
-SUCCESS='\033[38;2;0;229;204m'
-WARN='\033[38;2;255;176;32m'
-ERROR='\033[38;2;230;57;70m'
-MUTED='\033[38;2;90;100;128m'
-NC='\033[0m'
+# -----------------------------------------------------------------------------
+# Cores — paleta "Event Horizon" (âmbar #f5b000, assinatura do ghostty-blackhole)
+# Rampa blackbody: brasa -> âmbar -> branco-quente
+# -----------------------------------------------------------------------------
+BLACKBODY_STOPS="7a3b00 c47800 f5b000 ffd75e fff3c4"
+
+if [[ -t 1 && -z "${NO_COLOR:-}" && "${TERM:-dumb}" != "dumb" ]]; then
+    COLOR_OK=1
+    BOLD='\033[1m'
+    ACCENT='\033[38;2;245;176;0m'       # âmbar assinatura #f5b000
+    INFO='\033[38;2;136;146;176m'       # text-secondary #8892b0
+    SUCCESS='\033[38;2;0;229;204m'      # cyan-bright   #00e5cc
+    WARN='\033[38;2;255;176;32m'        # âmbar-quente
+    ERROR='\033[38;2;230;57;70m'        # coral-mid     #e63946
+    MUTED='\033[38;2;90;100;128m'       # text-muted    #5a6480
+    NC='\033[0m'
+else
+    COLOR_OK=0
+    BOLD='' ACCENT='' INFO='' SUCCESS='' WARN='' ERROR='' MUTED='' NC=''
+fi
+ANIM_OK="$COLOR_OK"
 
 TMPFILES=()
 cleanup_tmpfiles() {
@@ -24,6 +37,9 @@ cleanup_tmpfiles() {
     for f in "${TMPFILES[@]:-}"; do
         rm -rf "$f" 2>/dev/null || true
     done
+    if [[ -t 1 ]]; then
+        tput cnorm 2>/dev/null || true
+    fi
 }
 trap cleanup_tmpfiles EXIT
 
@@ -62,14 +78,6 @@ download_file() {
         return
     fi
     wget -q --https-only --secure-protocol=TLSv1_2 --tries=3 --timeout=20 -O "$output" "$url"
-}
-
-run_remote_bash() {
-    local url="$1"
-    local tmp
-    tmp="$(mktempfile)"
-    download_file "$url" "$tmp"
-    /bin/bash "$tmp"
 }
 
 # -----------------------------------------------------------------------------
@@ -210,6 +218,22 @@ bootstrap_gum_temp() {
     return 0
 }
 
+apply_gum_theme() {
+    [[ -n "$GUM" ]] || return 0
+    export GUM_CHOOSE_CURSOR="❯ "
+    export GUM_CHOOSE_CURSOR_FOREGROUND="#f5b000"
+    export GUM_CHOOSE_HEADER_FOREGROUND="#8892b0"
+    export GUM_CHOOSE_SELECTED_FOREGROUND="#f5b000"
+    export GUM_CHOOSE_SELECTED_PREFIX="◆ "
+    export GUM_CHOOSE_UNSELECTED_PREFIX="◇ "
+    export GUM_CHOOSE_CURSOR_PREFIX="◇ "
+    export GUM_CONFIRM_PROMPT_FOREGROUND="#f5b000"
+    export GUM_CONFIRM_SELECTED_BACKGROUND="#f5b000"
+    export GUM_CONFIRM_SELECTED_FOREGROUND="#000000"
+    export GUM_SPIN_SPINNER_FOREGROUND="#f5b000"
+    return 0
+}
+
 print_gum_status() {
     case "$GUM_STATUS" in
         found)
@@ -226,22 +250,118 @@ print_gum_status() {
     esac
 }
 
-print_installer_banner() {
-    if [[ -n "$GUM" ]]; then
-        local title tagline hint card
-        title="$("$GUM" style --foreground "#ff4d4d" --bold " Mac Environment Installer v2 ")"
-        tagline="$("$GUM" style --foreground "#8892b0" "iTerm2 + Oh My Zsh + Powerlevel10k + pyenv + eza + MesloLGS Nerd Font + .zshrc")"
-        hint="$("$GUM" style --foreground "#5a6480" "modo com spinner e etapas")"
-        card="$(printf '%s\n%s\n%s' "$title" "$tagline" "$hint")"
-        "$GUM" style --border rounded --border-foreground "#ff4d4d" --padding "1 2" "$card"
-        echo ""
-        return
-    fi
+# -----------------------------------------------------------------------------
+# Primitivas de arte — gradiente truecolor sobre a rampa blackbody
+# -----------------------------------------------------------------------------
+R=0 G=0 B=0
+hex_to_rgb() {
+    local h="${1#\#}"
+    R=$((16#${h:0:2}))
+    G=$((16#${h:2:2}))
+    B=$((16#${h:4:2}))
+}
 
-    echo -e "${ACCENT}${BOLD}"
-    echo "  Mac Environment Installer v2"
-    echo -e "${NC}${INFO}  iTerm2 + Oh My Zsh + Powerlevel10k + pyenv + eza + MesloLGS Nerd Font + .zshrc${NC}"
+# ramp_rgb_at <pos 0..1000> — interpola a rampa e define R,G,B
+ramp_rgb_at() {
+    local pos="$1"
+    local stops=($BLACKBODY_STOPS)
+    local n=${#stops[@]}
+    local span=$((n - 1))
+    local scaled=$((pos * span))
+    local seg=$((scaled / 1000))
+    local frac=$((scaled % 1000))
+    if [[ $seg -ge $span ]]; then
+        seg=$((span - 1))
+        frac=1000
+    fi
+    local r1 g1 b1
+    hex_to_rgb "${stops[$seg]}"
+    r1=$R; g1=$G; b1=$B
+    hex_to_rgb "${stops[$((seg + 1))]}"
+    R=$((r1 + (R - r1) * frac / 1000))
+    G=$((g1 + (G - g1) * frac / 1000))
+    B=$((b1 + (B - b1) * frac / 1000))
+}
+
+# gradient_text <texto> — imprime o texto com gradiente horizontal da rampa
+gradient_text() {
+    local text="$1"
+    local len=${#text}
+    if [[ "$COLOR_OK" != "1" || $len -le 1 ]]; then
+        printf '%s\n' "$text"
+        return 0
+    fi
+    local i ch esc out=""
+    for ((i = 0; i < len; i++)); do
+        ch="${text:$i:1}"
+        if [[ "$ch" == " " ]]; then
+            out+=" "
+            continue
+        fi
+        ramp_rgb_at $((i * 1000 / (len - 1)))
+        printf -v esc '\033[38;2;%d;%d;%dm' "$R" "$G" "$B"
+        out+="${esc}${ch}"
+    done
+    printf '%s\033[0m\n' "$out"
+}
+
+term_cols() {
+    local c
+    c="$(tput cols 2>/dev/null || echo 72)"
+    if ! [[ "$c" =~ ^[0-9]+$ ]]; then
+        c=72
+    fi
+    if [[ $c -gt 92 ]]; then c=92; fi
+    if [[ $c -lt 60 ]]; then c=60; fi
+    echo "$c"
+}
+
+rule_gradient() {
+    local char="${1:-─}"
+    local w line
+    w="$(term_cols)"
+    printf -v line '%*s' "$w" ''
+    line=${line// /$char}
+    gradient_text "$line"
+}
+
+reveal_lines() {
+    local line
+    for line in "$@"; do
+        gradient_text "$line"
+        if [[ "$ANIM_OK" == "1" ]]; then
+            sleep 0.04
+        fi
+    done
+}
+
+print_installer_banner() {
     echo ""
+    if [[ "$COLOR_OK" != "1" ]]; then
+        echo "Mac Environment Installer v3"
+        echo "ambiente de desenvolvimento macOS — instalação por categorias"
+        echo ""
+        return 0
+    fi
+    if [[ -t 1 ]]; then
+        tput civis 2>/dev/null || true
+    fi
+    reveal_lines \
+        "               ░░▒▒▓▓██████████▓▓▒▒░░" \
+        "           ░▒▓████████████████████████▓▒░" \
+        "         ▒████▓▒░░                ░░▒▓████▒" \
+        "        ▓███▒                          ▒███▓" \
+        "         ▒████▓▒░░                ░░▒▓████▒" \
+        "           ░▒▓████████████████████████▓▒░" \
+        "               ░░▒▒▓▓██████████▓▓▒▒░░"
+    echo ""
+    echo -ne "${BOLD}"
+    gradient_text "               ◆  M A C · E N V  ◆"
+    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.0.0${NC}"
+    echo ""
+    if [[ -t 1 ]]; then
+        tput cnorm 2>/dev/null || true
+    fi
 }
 
 # -----------------------------------------------------------------------------
@@ -250,7 +370,7 @@ print_installer_banner() {
 ui_info() {
     local msg="$*"
     if [[ -n "$GUM" ]]; then
-        "$GUM" log --level info "$msg"
+        "$GUM" log --level info -- "$msg"
     else
         echo -e "${MUTED}·${NC} ${msg}"
     fi
@@ -259,7 +379,7 @@ ui_info() {
 ui_warn() {
     local msg="$*"
     if [[ -n "$GUM" ]]; then
-        "$GUM" log --level warn "$msg"
+        "$GUM" log --level warn -- "$msg"
     else
         echo -e "${WARN}!${NC} ${msg}"
     fi
@@ -279,29 +399,80 @@ ui_success() {
 ui_error() {
     local msg="$*"
     if [[ -n "$GUM" ]]; then
-        "$GUM" log --level error "$msg"
+        "$GUM" log --level error -- "$msg"
     else
         echo -e "${ERROR}✗${NC} ${msg}"
     fi
 }
 
-INSTALL_STAGE_TOTAL=4
+# item concluído com cronômetro / item pulado
+ui_done() {
+    local label="$1"
+    local secs="${2:-0}"
+    local suffix=""
+    if [[ "$secs" -gt 1 ]]; then
+        suffix=" · ${secs}s"
+    fi
+    echo -e "${SUCCESS}✓${NC} ${label}${MUTED}${suffix}${NC}"
+}
+
+ui_skip() {
+    echo -e "${MUTED}◇ ${1} — já instalado${NC}"
+}
+
+INSTALL_STAGE_TOTAL=0
 INSTALL_STAGE_CURRENT=0
+ITEMS_TOTAL=0
+ITEMS_DONE=0
 
 ui_section() {
     local title="$1"
     if [[ -n "$GUM" ]]; then
-        "$GUM" style --bold --foreground "#ff4d4d" --padding "1 0" "$title"
+        "$GUM" style --bold --foreground "#f5b000" --padding "1 0" "$title"
     else
         echo ""
         echo -e "${ACCENT}${BOLD}${title}${NC}"
     fi
 }
 
+progress_orbit_line() {
+    if [[ "$ITEMS_TOTAL" -le 0 || "$COLOR_OK" != "1" ]]; then
+        return 0
+    fi
+    local width=24
+    local filled=$((ITEMS_DONE * width / ITEMS_TOTAL))
+    local i esc out=""
+    for ((i = 0; i < width; i++)); do
+        if [[ $i -lt $filled ]]; then
+            ramp_rgb_at $((i * 1000 / (width - 1)))
+            printf -v esc '\033[38;2;%d;%d;%dm' "$R" "$G" "$B"
+            out+="${esc}▰"
+        else
+            out+=$'\033[38;2;90;100;128m▱'
+        fi
+    done
+    printf '%s\033[0m %s\n' "$out" "${ITEMS_DONE}/${ITEMS_TOTAL} itens"
+}
+
 ui_stage() {
     local title="$1"
     INSTALL_STAGE_CURRENT=$((INSTALL_STAGE_CURRENT + 1))
-    ui_section "[${INSTALL_STAGE_CURRENT}/${INSTALL_STAGE_TOTAL}] ${title}"
+    echo ""
+    if [[ "$COLOR_OK" == "1" ]]; then
+        local head="━━ [${INSTALL_STAGE_CURRENT}/${INSTALL_STAGE_TOTAL}] ${title} "
+        local w fill pad
+        w="$(term_cols)"
+        fill=$((w - ${#head}))
+        if [[ $fill -lt 4 ]]; then
+            fill=4
+        fi
+        printf -v pad '%*s' "$fill" ''
+        pad=${pad// /━}
+        gradient_text "${head}${pad}"
+        progress_orbit_line
+    else
+        echo "== [${INSTALL_STAGE_CURRENT}/${INSTALL_STAGE_TOTAL}] ${title} =="
+    fi
 }
 
 is_shell_function() {
@@ -355,6 +526,487 @@ run_quiet_step() {
 }
 
 # -----------------------------------------------------------------------------
+# Catálogo — categorias, itens e perfis
+# Convenção: item "id" -> função install_<id com hífen vira _>
+# A ordem dos registros em ITEM_DB é a ordem de execução dentro da categoria.
+# -----------------------------------------------------------------------------
+CATEGORY_DB=(
+    "terminal|Terminal & Shell|Ghostty, Oh My Zsh, prompt, fontes, eza/fzf/zoxide/bat"
+    "dev|Dev Essentials|git, gh, jq, wget, Docker, Node/pnpm/bun, pyenv"
+    "cloud|Cloud & Infra|awscli, kubectl, supabase, ngrok, redis"
+    "android|Mobile Android|OpenJDK 21, platform-tools, Android Studio"
+    "ios|Mobile iOS|CocoaPods"
+    "apps|Apps|VS Code, Cursor"
+)
+
+# id|categoria|rótulo|padrão(1/0) — itens 0 só entram por escolha explícita
+ITEM_DB=(
+    "ghostty|terminal|Ghostty|1"
+    "iterm2|terminal|iTerm2|0"
+    "font-jetbrains|terminal|JetBrainsMono Nerd Font|1"
+    "font-meslo|terminal|MesloLGS Nerd Font|0"
+    "ohmyzsh|terminal|Oh My Zsh + plugins zsh|1"
+    "starship|terminal|Prompt Starship|1"
+    "p10k|terminal|Prompt Powerlevel10k|0"
+    "eza|terminal|eza (ls com ícones)|1"
+    "fzf|terminal|fzf (busca fuzzy)|1"
+    "zoxide|terminal|zoxide (cd inteligente)|1"
+    "bat|terminal|bat (cat com highlight)|1"
+    "git|dev|git (Homebrew)|1"
+    "gh|dev|GitHub CLI|1"
+    "jq|dev|jq|1"
+    "wget|dev|wget|1"
+    "docker|dev|Docker Desktop|1"
+    "node|dev|Node.js + pnpm + bun|1"
+    "pyenv|dev|pyenv + pyenv-virtualenv|1"
+    "awscli|cloud|AWS CLI|1"
+    "kubectl|cloud|kubectl|1"
+    "supabase|cloud|Supabase CLI|1"
+    "ngrok|cloud|ngrok|1"
+    "redis|cloud|Redis|1"
+    "openjdk21|android|OpenJDK 21|1"
+    "platform-tools|android|Android platform-tools (adb)|1"
+    "android-studio|android|Android Studio|0"
+    "cocoapods|ios|CocoaPods|1"
+    "vscode|apps|Visual Studio Code|1"
+    "cursor|apps|Cursor|1"
+)
+
+SELECTED_CATEGORIES=""
+SELECTED_ITEMS=""
+PROMPT_ACTIVE=""        # starship | p10k | vazio
+TERMINAL_CHOICE=""      # ghostty | iterm2 | ambos | vazio
+PROFILE_LABEL=""
+
+category_selected() {
+    case " $SELECTED_CATEGORIES " in
+        *" $1 "*) return 0 ;;
+    esac
+    return 1
+}
+
+item_selected() {
+    case " $SELECTED_ITEMS " in
+        *" $1 "*) return 0 ;;
+    esac
+    return 1
+}
+
+select_item() {
+    if ! item_selected "$1"; then
+        SELECTED_ITEMS="$SELECTED_ITEMS $1"
+    fi
+    return 0
+}
+
+deselect_item() {
+    local out="" it
+    for it in $SELECTED_ITEMS; do
+        if [[ "$it" != "$1" ]]; then
+            out="$out $it"
+        fi
+    done
+    SELECTED_ITEMS="$out"
+    return 0
+}
+
+category_label() {
+    local rec id label desc
+    for rec in "${CATEGORY_DB[@]}"; do
+        IFS='|' read -r id label desc <<< "$rec"
+        if [[ "$id" == "$1" ]]; then
+            echo "$label"
+            return 0
+        fi
+    done
+    echo "$1"
+}
+
+category_id_by_label() {
+    local rec id label desc
+    for rec in "${CATEGORY_DB[@]}"; do
+        IFS='|' read -r id label desc <<< "$rec"
+        if [[ "$label" == "$1" ]]; then
+            echo "$id"
+            return 0
+        fi
+    done
+    return 1
+}
+
+item_label() {
+    local rec id cat label def
+    for rec in "${ITEM_DB[@]}"; do
+        IFS='|' read -r id cat label def <<< "$rec"
+        if [[ "$id" == "$1" ]]; then
+            echo "$label"
+            return 0
+        fi
+    done
+    echo "$1"
+}
+
+preset_categories() {
+    case "$1" in
+        completo) echo "terminal dev cloud android ios apps" ;;
+        terminal) echo "terminal" ;;
+        dev)      echo "terminal dev apps" ;;
+        mobile)   echo "terminal dev android ios" ;;
+        *)        return 1 ;;
+    esac
+}
+
+apply_categories() {
+    SELECTED_CATEGORIES="$*"
+    SELECTED_ITEMS=""
+    local rec id cat label def
+    for rec in "${ITEM_DB[@]}"; do
+        IFS='|' read -r id cat label def <<< "$rec"
+        category_selected "$cat" || continue
+        if [[ "$def" == "1" ]]; then
+            select_item "$id"
+        fi
+    done
+    if category_selected terminal; then
+        PROMPT_ACTIVE="starship"
+        TERMINAL_CHOICE="ghostty"
+    else
+        PROMPT_ACTIVE=""
+        TERMINAL_CHOICE=""
+    fi
+    return 0
+}
+
+count_words() {
+    # shellcheck disable=SC2086
+    set -- $1
+    echo $#
+}
+
+# -----------------------------------------------------------------------------
+# Argumentos
+# -----------------------------------------------------------------------------
+VERBOSE=0
+ASSUME_YES=0
+ALL=0
+DRY_RUN=0
+PROFILE=""
+CATEGORIES_ARG=""
+
+print_usage() {
+    cat <<'USAGE'
+Mac Environment Installer v3
+
+Uso:
+  bash mac_env_install.sh [opções]
+  curl -fsSL https://raw.githubusercontent.com/aleonnet/mac-env-setup/main/mac_env_install.sh | bash -s -- [opções]
+
+Sem opções (em terminal interativo): abre o seletor de perfis e categorias.
+
+Opções:
+  --profile <p>       Perfil sem interação: completo | terminal | dev | mobile
+  --categories a,b,c  Categorias sem interação: terminal,dev,cloud,android,ios,apps
+  --all               Tudo (equivale a --profile completo)
+  --yes, -y           Não perguntar nada; usa o perfil padrão (terminal)
+  --dry-run           Mostra o que seria instalado e sai, sem tocar no sistema
+  --list              Lista categorias e itens disponíveis e sai
+  --verbose, -v       Mostra a saída completa de cada passo
+  --help, -h          Esta ajuda
+
+Variáveis de ambiente: MACENV_USE_GUM (auto|1|0), MACENV_GUM_VERSION, NO_COLOR
+USAGE
+}
+
+print_catalog() {
+    local rec id cat label def clabel cdesc
+    echo "Categorias e itens (◆ = padrão do perfil, ◇ = opcional):"
+    for rec in "${CATEGORY_DB[@]}"; do
+        IFS='|' read -r id clabel cdesc <<< "$rec"
+        echo ""
+        echo "  ${id} — ${clabel}"
+        local irec
+        for irec in "${ITEM_DB[@]}"; do
+            IFS='|' read -r iid cat label def <<< "$irec"
+            if [[ "$cat" == "$id" ]]; then
+                if [[ "$def" == "1" ]]; then
+                    echo "     ◆ ${label}"
+                else
+                    echo "     ◇ ${label}"
+                fi
+            fi
+        done
+    done
+    echo ""
+    echo "Perfis: completo · terminal · dev (terminal+dev+apps) · mobile (terminal+dev+android+ios)"
+}
+
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --verbose|-v)   VERBOSE=1 ;;
+            --yes|-y)       ASSUME_YES=1 ;;
+            --all)          ALL=1 ;;
+            --dry-run)      DRY_RUN=1 ;;
+            --profile)      PROFILE="${2:-}"; shift ;;
+            --profile=*)    PROFILE="${1#*=}" ;;
+            --categories)   CATEGORIES_ARG="${2:-}"; shift ;;
+            --categories=*) CATEGORIES_ARG="${1#*=}" ;;
+            --list)         print_catalog; exit 0 ;;
+            --help|-h)      print_usage; exit 0 ;;
+            *)              echo "argumento desconhecido: $1 (use --help)" >&2 ;;
+        esac
+        shift
+    done
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# Seleção — headless (flags) ou interativa (gum + /dev/tty)
+# -----------------------------------------------------------------------------
+can_prompt() {
+    [[ -n "$GUM" ]] || return 1
+    if [[ "$ASSUME_YES" == "1" || "$ALL" == "1" ]]; then
+        return 1
+    fi
+    if [[ -n "$PROFILE" || -n "$CATEGORIES_ARG" ]]; then
+        return 1
+    fi
+    [[ -r /dev/tty && -w /dev/tty ]] || return 1
+    return 0
+}
+
+gum_choose_tty() {
+    "$GUM" choose "$@" </dev/tty
+}
+
+gum_confirm_tty() {
+    "$GUM" confirm "$@" </dev/tty
+}
+
+selection_cancelled() {
+    ui_warn "Seleção cancelada."
+    exit 130
+}
+
+select_profile() {
+    local sel
+    sel="$(gum_choose_tty --header "Escolha um perfil de instalação" \
+        "Completo — tudo: terminal, dev, cloud, android, ios, apps" \
+        "Terminal bonito — Ghostty, Starship, fontes, eza/fzf/zoxide/bat" \
+        "Dev — Terminal bonito + git, Docker, Node, pyenv + apps" \
+        "Mobile — Dev básico + Android + iOS" \
+        "Personalizado — escolher categorias")" || selection_cancelled
+    case "$sel" in
+        Completo*)  PROFILE_LABEL="Completo";  apply_categories terminal dev cloud android ios apps ;;
+        Terminal*)  PROFILE_LABEL="Terminal bonito"; apply_categories terminal ;;
+        Dev*)       PROFILE_LABEL="Dev";       apply_categories terminal dev apps ;;
+        Mobile*)    PROFILE_LABEL="Mobile";    apply_categories terminal dev android ios ;;
+        Personalizado*)
+            PROFILE_LABEL="Personalizado"
+            refine_categories
+            ;;
+        *) selection_cancelled ;;
+    esac
+    return 0
+}
+
+refine_categories() {
+    local rec id label desc opts=()
+    for rec in "${CATEGORY_DB[@]}"; do
+        IFS='|' read -r id label desc <<< "$rec"
+        opts+=("$label")
+    done
+    local sel
+    sel="$(gum_choose_tty --no-limit --header "Selecione as categorias (espaço marca, enter confirma)" \
+        --selected "Terminal & Shell,Dev Essentials" "${opts[@]}")" || selection_cancelled
+    if [[ -z "$sel" ]]; then
+        selection_cancelled
+    fi
+    local cats="" line cid
+    while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
+        if cid="$(category_id_by_label "$line")"; then
+            cats="$cats $cid"
+        fi
+    done <<< "$sel"
+    # shellcheck disable=SC2086
+    apply_categories $cats
+    return 0
+}
+
+select_terminal_choice() {
+    category_selected terminal || return 0
+    local sel
+    sel="$(gum_choose_tty --header "Qual terminal instalar?" \
+        "Ghostty — GPU/Metal, recomendado" \
+        "iTerm2 — clássico" \
+        "Ambos")" || selection_cancelled
+    case "$sel" in
+        Ghostty*) TERMINAL_CHOICE="ghostty"; select_item ghostty; deselect_item iterm2 ;;
+        iTerm2*)  TERMINAL_CHOICE="iterm2";  select_item iterm2;  deselect_item ghostty ;;
+        Ambos*)   TERMINAL_CHOICE="ambos";   select_item ghostty; select_item iterm2 ;;
+    esac
+    return 0
+}
+
+select_prompt_choice() {
+    category_selected terminal || return 0
+    local header="Qual prompt ativar no zsh?"
+    if [[ -f "$HOME/.p10k.zsh" ]]; then
+        header="Qual prompt ativar? (~/.p10k.zsh detectado — sua config será mantida)"
+    fi
+    local sel
+    sel="$(gum_choose_tty --header "$header" \
+        "Starship — moderno, config declarativa (recomendado)" \
+        "Powerlevel10k — mantém seu setup atual")" || selection_cancelled
+    case "$sel" in
+        Starship*)
+            PROMPT_ACTIVE="starship"
+            select_item starship
+            deselect_item p10k
+            ;;
+        Powerlevel10k*)
+            PROMPT_ACTIVE="p10k"
+            select_item p10k
+            deselect_item starship
+            select_item font-meslo   # fonte recomendada oficialmente pelo p10k
+            ;;
+    esac
+    return 0
+}
+
+interactive_selection() {
+    select_profile
+    select_terminal_choice
+    select_prompt_choice
+    return 0
+}
+
+resolve_selection() {
+    if [[ "$ALL" == "1" ]]; then
+        PROFILE_LABEL="Completo"
+        apply_categories terminal dev cloud android ios apps
+        return 0
+    fi
+    if [[ -n "$PROFILE" ]]; then
+        local cats
+        if ! cats="$(preset_categories "$PROFILE")"; then
+            ui_error "Perfil desconhecido: ${PROFILE} (use completo|terminal|dev|mobile)"
+            exit 1
+        fi
+        PROFILE_LABEL="$PROFILE"
+        # shellcheck disable=SC2086
+        apply_categories $cats
+        return 0
+    fi
+    if [[ -n "$CATEGORIES_ARG" ]]; then
+        local cats c
+        cats="$(echo "$CATEGORIES_ARG" | tr ',' ' ')"
+        for c in $cats; do
+            if [[ -z "$(category_label "$c")" ]] || ! preset_valid_category "$c"; then
+                ui_error "Categoria desconhecida: ${c} (use --list para ver as válidas)"
+                exit 1
+            fi
+        done
+        PROFILE_LABEL="Personalizado (flags)"
+        # shellcheck disable=SC2086
+        apply_categories $cats
+        return 0
+    fi
+    if can_prompt; then
+        interactive_selection
+        return 0
+    fi
+    PROFILE_LABEL="Terminal bonito (padrão)"
+    ui_warn "Sem seletor interativo (gum/TTY indisponível ou --yes): usando perfil 'terminal'."
+    ui_warn "Para outros perfis: --profile completo|dev|mobile ou --categories terminal,dev,..."
+    apply_categories terminal
+    return 0
+}
+
+preset_valid_category() {
+    local rec id label desc
+    for rec in "${CATEGORY_DB[@]}"; do
+        IFS='|' read -r id label desc <<< "$rec"
+        if [[ "$id" == "$1" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+compute_stages() {
+    INSTALL_STAGE_TOTAL=1   # Base
+    ITEMS_TOTAL=0
+    local rec id label desc
+    for rec in "${CATEGORY_DB[@]}"; do
+        IFS='|' read -r id label desc <<< "$rec"
+        if category_selected "$id"; then
+            INSTALL_STAGE_TOTAL=$((INSTALL_STAGE_TOTAL + 1))
+        fi
+    done
+    if category_selected terminal; then
+        INSTALL_STAGE_TOTAL=$((INSTALL_STAGE_TOTAL + 1))   # Configurações
+    fi
+    ITEMS_TOTAL="$(count_words "$SELECTED_ITEMS")"
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# Manifesto — resumo pré-instalação em árvore
+# -----------------------------------------------------------------------------
+print_plan_summary() {
+    local body="" rec id clabel cdesc
+    body="Perfil: ${PROFILE_LABEL} · ${INSTALL_STAGE_TOTAL} estágios · ${ITEMS_TOTAL} itens"$'\n'
+    local cats=() c
+    for rec in "${CATEGORY_DB[@]}"; do
+        IFS='|' read -r id clabel cdesc <<< "$rec"
+        if category_selected "$id"; then
+            cats+=("$id")
+        fi
+    done
+    local n=${#cats[@]} i=0 branch items irec iid icat ilabel idef
+    for c in "${cats[@]}"; do
+        i=$((i + 1))
+        if [[ $i -eq $n ]]; then
+            branch="╰─"
+        else
+            branch="├─"
+        fi
+        items=""
+        for irec in "${ITEM_DB[@]}"; do
+            IFS='|' read -r iid icat ilabel idef <<< "$irec"
+            if [[ "$icat" == "$c" ]] && item_selected "$iid"; then
+                if [[ -n "$items" ]]; then
+                    items="${items} · ${ilabel}"
+                else
+                    items="$ilabel"
+                fi
+            fi
+        done
+        body="${body}${branch} $(category_label "$c")"$'\n'
+        if [[ $i -eq $n ]]; then
+            body="${body}   ${items}"$'\n'
+        else
+            body="${body}│  ${items}"$'\n'
+        fi
+    done
+    if [[ "$PROMPT_ACTIVE" == "starship" ]]; then
+        body="${body}"$'\n'"Prompt ativo: Starship (~/.config/starship.toml)"
+    elif [[ "$PROMPT_ACTIVE" == "p10k" ]]; then
+        body="${body}"$'\n'"Prompt ativo: Powerlevel10k (~/.p10k.zsh preservado)"
+    fi
+    echo ""
+    if [[ -n "$GUM" ]]; then
+        "$GUM" style --border rounded --border-foreground "#f5b000" --padding "0 2" --width "$(($(term_cols) - 4))" "$body"
+    else
+        echo -e "${ACCENT}${BOLD}Plano de instalação${NC}"
+        echo "$body"
+    fi
+    return 0
+}
+
+# -----------------------------------------------------------------------------
 # Detecção de ambiente
 # -----------------------------------------------------------------------------
 detect_macos_or_die() {
@@ -403,295 +1055,863 @@ install_homebrew() {
         ensure_brew_in_path
         return 0
     fi
-    ui_info "Instalando Homebrew..."
-    run_quiet_step "Instalando Homebrew" env NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    run_quiet_step "Instalando Homebrew" env NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || return 1
     ensure_brew_in_path
     ui_success "Homebrew instalado"
 }
 
 # -----------------------------------------------------------------------------
-# iTerm2
+# Funções de instalação por item
+# Convenção de retorno: 0 = instalado agora · 100 = já instalado · 1 = falhou
+# Comandos críticos SEMPRE com "|| return 1" (errexit desliga dentro de "fn || rc").
 # -----------------------------------------------------------------------------
+install_ghostty() {
+    ensure_brew_in_path
+    if [[ -d "/Applications/Ghostty.app" ]] || brew list --cask ghostty &>/dev/null; then
+        return 100
+    fi
+    run_quiet_step "Instalando Ghostty" brew install --cask ghostty || return 1
+    return 0
+}
+
 install_iterm2() {
-    if [[ -d "/Applications/iTerm.app" ]]; then
-        ui_success "iTerm2 já instalado"
-        return 0
-    fi
     ensure_brew_in_path
-    run_quiet_step "Instalando iTerm2" brew install --cask iterm2
-    ui_success "iTerm2 instalado"
+    if [[ -d "/Applications/iTerm.app" ]] || brew list --cask iterm2 &>/dev/null; then
+        return 100
+    fi
+    run_quiet_step "Instalando iTerm2" brew install --cask iterm2 || return 1
+    return 0
 }
 
-# -----------------------------------------------------------------------------
-# Oh My Zsh
-# -----------------------------------------------------------------------------
-install_oh_my_zsh() {
-    if [[ -d "$HOME/.oh-my-zsh" ]]; then
-        ui_success "Oh My Zsh já instalado"
-        return 0
+install_font_jetbrains() {
+    ensure_brew_in_path
+    if brew list --cask font-jetbrains-mono-nerd-font &>/dev/null; then
+        return 100
     fi
-    ui_info "Instalando Oh My Zsh (CHSH=no, KEEP_ZSHRC=yes)"
-    run_quiet_step "Instalando Oh My Zsh" env RUNZSH=no CHSH=no KEEP_ZSHRC=yes sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
-    ui_success "Oh My Zsh instalado"
+    run_quiet_step "Instalando JetBrainsMono Nerd Font" brew install --cask font-jetbrains-mono-nerd-font || return 1
+    return 0
 }
 
-# -----------------------------------------------------------------------------
-# Plugins ZSH (Powerlevel10k, autosuggestions, syntax-highlighting)
-# -----------------------------------------------------------------------------
-install_zsh_plugins() {
+# MesloLGS: sempre garante a v3.x e remove a v2.3.3 legada (U+F8FF incompatível)
+install_font_meslo() {
     ensure_brew_in_path
-    local to_install=()
-    brew list powerlevel10k &>/dev/null    || to_install+=(powerlevel10k)
-    brew list zsh-autosuggestions &>/dev/null || to_install+=(zsh-autosuggestions)
-    brew list zsh-syntax-highlighting &>/dev/null || to_install+=(zsh-syntax-highlighting)
-    if [[ ${#to_install[@]} -eq 0 ]]; then
-        ui_success "Plugins ZSH já instalados"
-        return 0
-    fi
-    run_quiet_step "Instalando plugins ZSH" brew install "${to_install[@]}"
-    ui_success "Plugins ZSH instalados"
-}
-
-# -----------------------------------------------------------------------------
-# pyenv
-# -----------------------------------------------------------------------------
-install_pyenv() {
-    ensure_brew_in_path
-    if command -v pyenv &>/dev/null; then
-        ui_success "pyenv já instalado"
-        return 0
-    fi
-    run_quiet_step "Instalando pyenv" brew install pyenv
-    ui_success "pyenv instalado"
-}
-
-# -----------------------------------------------------------------------------
-# MesloLGS Nerd Font (v3+ — U+F8FF vazio; macOS exibe a maçã via fallback)
-# Sempre reinstala via brew para garantir a versão mais recente (3.x).
-# A versão antiga "MesloLGS NF" (2.3.3) tem pi-box em U+F8FF e não deve ser usada.
-# -----------------------------------------------------------------------------
-install_meslo_nerd_font() {
-    ensure_brew_in_path
-
-    # Remover cask antigo se presente (MesloLGS NF 2.3.3 que mostra π em U+F8FF)
     local old_ttf="$HOME/Library/Fonts/MesloLGS NF Regular.ttf"
     if [[ -f "$old_ttf" ]]; then
         ui_info "Removendo MesloLGS NF antiga (v2.3.3 — U+F8FF = pi-box)..."
         rm -f "$HOME/Library/Fonts/MesloLGS NF"*.ttf 2>/dev/null || true
-        ui_success "Fonte antiga removida"
     fi
-
-    # Instalar / atualizar cask oficial (Nerd Fonts 3.x)
     if brew list --cask font-meslo-lg-nerd-font &>/dev/null; then
         run_quiet_step "Atualizando MesloLGS Nerd Font" brew upgrade --cask font-meslo-lg-nerd-font || true
-        ui_success "MesloLGS Nerd Font atualizada (Nerd Fonts 3.x)"
-    else
-        run_quiet_step "Instalando MesloLGS Nerd Font" brew install --cask font-meslo-lg-nerd-font
-        ui_success "MesloLGS Nerd Font instalada (Nerd Fonts 3.x)"
+        return 100
     fi
-
-    ui_info "Fonte a usar no iTerm2/Cursor: MesloLGSNerdFontMono-Regular (sem espaços)"
-    ui_info "U+F8FF vazio na v3 → macOS exibe  via fallback de sistema"
+    run_quiet_step "Instalando MesloLGS Nerd Font" brew install --cask font-meslo-lg-nerd-font || return 1
+    return 0
 }
 
-# -----------------------------------------------------------------------------
-# eza (ls moderno com ícones para pastas e arquivos)
-# -----------------------------------------------------------------------------
+install_ohmyzsh() {
+    local did=0
+    if [[ ! -d "$HOME/.oh-my-zsh" ]]; then
+        run_quiet_step "Instalando Oh My Zsh" env RUNZSH=no CHSH=no KEEP_ZSHRC=yes sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" || return 1
+        did=1
+    fi
+    ensure_brew_in_path
+    local to_install=()
+    brew list zsh-autosuggestions &>/dev/null || to_install+=(zsh-autosuggestions)
+    brew list zsh-syntax-highlighting &>/dev/null || to_install+=(zsh-syntax-highlighting)
+    if [[ ${#to_install[@]} -gt 0 ]]; then
+        run_quiet_step "Instalando plugins zsh" brew install "${to_install[@]}" || return 1
+        did=1
+    fi
+    if [[ $did -eq 0 ]]; then
+        return 100
+    fi
+    return 0
+}
+
+install_starship() {
+    ensure_brew_in_path
+    if command -v starship &>/dev/null || brew list starship &>/dev/null; then
+        return 100
+    fi
+    run_quiet_step "Instalando Starship" brew install starship || return 1
+    return 0
+}
+
+install_p10k() {
+    ensure_brew_in_path
+    if brew list powerlevel10k &>/dev/null; then
+        return 100
+    fi
+    run_quiet_step "Instalando Powerlevel10k" brew install powerlevel10k || return 1
+    return 0
+}
+
 install_eza() {
     ensure_brew_in_path
     if command -v eza &>/dev/null; then
-        ui_success "eza já instalado"
-        return 0
+        return 100
     fi
-    run_quiet_step "Instalando eza" brew install eza
-    ui_success "eza instalado (ls com ícones)"
+    run_quiet_step "Instalando eza" brew install eza || return 1
+    return 0
+}
+
+install_fzf() {
+    ensure_brew_in_path
+    if command -v fzf &>/dev/null; then
+        return 100
+    fi
+    run_quiet_step "Instalando fzf" brew install fzf || return 1
+    return 0
+}
+
+install_zoxide() {
+    ensure_brew_in_path
+    if command -v zoxide &>/dev/null; then
+        return 100
+    fi
+    run_quiet_step "Instalando zoxide" brew install zoxide || return 1
+    return 0
+}
+
+install_bat() {
+    ensure_brew_in_path
+    if command -v bat &>/dev/null; then
+        return 100
+    fi
+    run_quiet_step "Instalando bat" brew install bat || return 1
+    return 0
+}
+
+install_git() {
+    ensure_brew_in_path
+    if brew list git &>/dev/null; then
+        return 100
+    fi
+    run_quiet_step "Instalando git (Homebrew)" brew install git || return 1
+    return 0
+}
+
+install_gh() {
+    ensure_brew_in_path
+    if command -v gh &>/dev/null; then
+        return 100
+    fi
+    run_quiet_step "Instalando GitHub CLI" brew install gh || return 1
+    return 0
+}
+
+install_jq() {
+    ensure_brew_in_path
+    if command -v jq &>/dev/null; then
+        return 100
+    fi
+    run_quiet_step "Instalando jq" brew install jq || return 1
+    return 0
+}
+
+install_wget() {
+    ensure_brew_in_path
+    if command -v wget &>/dev/null; then
+        return 100
+    fi
+    run_quiet_step "Instalando wget" brew install wget || return 1
+    return 0
+}
+
+install_docker() {
+    ensure_brew_in_path
+    if [[ -d "/Applications/Docker.app" ]] || brew list --cask docker-desktop &>/dev/null || brew list --cask docker &>/dev/null; then
+        return 100
+    fi
+    run_quiet_step "Instalando Docker Desktop" brew install --cask docker-desktop || return 1
+    return 0
+}
+
+install_node() {
+    ensure_brew_in_path
+    local did=0
+    if ! command -v node &>/dev/null; then
+        run_quiet_step "Instalando Node.js" brew install node || return 1
+        did=1
+    fi
+    if ! command -v pnpm &>/dev/null; then
+        run_quiet_step "Instalando pnpm" brew install pnpm || return 1
+        did=1
+    fi
+    if ! command -v bun &>/dev/null; then
+        run_quiet_step "Instalando bun" brew install oven-sh/bun/bun || return 1
+        did=1
+    fi
+    if [[ $did -eq 0 ]]; then
+        return 100
+    fi
+    return 0
+}
+
+install_pyenv() {
+    ensure_brew_in_path
+    local did=0
+    if ! command -v pyenv &>/dev/null; then
+        run_quiet_step "Instalando pyenv" brew install pyenv || return 1
+        did=1
+    fi
+    if ! brew list pyenv-virtualenv &>/dev/null; then
+        run_quiet_step "Instalando pyenv-virtualenv" brew install pyenv-virtualenv || return 1
+        did=1
+    fi
+    if [[ $did -eq 0 ]]; then
+        return 100
+    fi
+    return 0
+}
+
+install_awscli() {
+    ensure_brew_in_path
+    if command -v aws &>/dev/null; then
+        return 100
+    fi
+    run_quiet_step "Instalando AWS CLI" brew install awscli || return 1
+    return 0
+}
+
+install_kubectl() {
+    ensure_brew_in_path
+    if command -v kubectl &>/dev/null; then
+        return 100
+    fi
+    run_quiet_step "Instalando kubectl" brew install kubernetes-cli || return 1
+    return 0
+}
+
+install_supabase() {
+    ensure_brew_in_path
+    if command -v supabase &>/dev/null; then
+        return 100
+    fi
+    run_quiet_step "Instalando Supabase CLI" brew install supabase/tap/supabase || return 1
+    return 0
+}
+
+install_ngrok() {
+    ensure_brew_in_path
+    if command -v ngrok &>/dev/null || brew list --cask ngrok &>/dev/null; then
+        return 100
+    fi
+    run_quiet_step "Instalando ngrok" brew install --cask ngrok || return 1
+    return 0
+}
+
+install_redis() {
+    ensure_brew_in_path
+    if brew list redis &>/dev/null; then
+        return 100
+    fi
+    run_quiet_step "Instalando Redis" brew install redis || return 1
+    return 0
+}
+
+install_openjdk21() {
+    ensure_brew_in_path
+    if brew list openjdk@21 &>/dev/null; then
+        return 100
+    fi
+    run_quiet_step "Instalando OpenJDK 21" brew install openjdk@21 || return 1
+    return 0
+}
+
+install_platform_tools() {
+    ensure_brew_in_path
+    if command -v adb &>/dev/null || brew list --cask android-platform-tools &>/dev/null; then
+        return 100
+    fi
+    run_quiet_step "Instalando Android platform-tools" brew install --cask android-platform-tools || return 1
+    return 0
+}
+
+install_android_studio() {
+    ensure_brew_in_path
+    if [[ -d "/Applications/Android Studio.app" ]] || brew list --cask android-studio &>/dev/null; then
+        return 100
+    fi
+    run_quiet_step "Instalando Android Studio" brew install --cask android-studio || return 1
+    return 0
+}
+
+install_cocoapods() {
+    ensure_brew_in_path
+    if ! xcode-select -p 2>/dev/null | grep -q "Xcode.app"; then
+        ui_warn "Xcode completo não detectado — instale pela App Store para builds iOS."
+    fi
+    if command -v pod &>/dev/null; then
+        return 100
+    fi
+    run_quiet_step "Instalando CocoaPods" brew install cocoapods || return 1
+    return 0
+}
+
+install_vscode() {
+    ensure_brew_in_path
+    if [[ -d "/Applications/Visual Studio Code.app" ]] || brew list --cask visual-studio-code &>/dev/null; then
+        return 100
+    fi
+    run_quiet_step "Instalando Visual Studio Code" brew install --cask visual-studio-code || return 1
+    return 0
+}
+
+install_cursor() {
+    ensure_brew_in_path
+    if [[ -d "/Applications/Cursor.app" ]] || brew list --cask cursor &>/dev/null; then
+        return 100
+    fi
+    run_quiet_step "Instalando Cursor" brew install --cask cursor || return 1
+    return 0
 }
 
 # -----------------------------------------------------------------------------
-# .zshrc (template: sem API keys reais; inclui alias ls -> eza --icons)
+# Execução por categoria com placar
 # -----------------------------------------------------------------------------
-write_zshrc() {
-    local zshrc="$HOME/.zshrc"
-    if [[ -f "$zshrc" ]]; then
-        local backup="${zshrc}.backup.$(date +%Y%m%d%H%M%S)"
-        cp "$zshrc" "$backup"
-        ui_info "Backup do .zshrc em: $backup"
+RESULT_OK=""
+RESULT_SKIP=""
+RESULT_FAIL=""
+
+run_item() {
+    local id="$1"
+    local label="$2"
+    local fn="install_${id//-/_}"
+    local start=$SECONDS
+    local rc=0
+    "$fn" || rc=$?
+    local elapsed=$((SECONDS - start))
+    ITEMS_DONE=$((ITEMS_DONE + 1))
+    case "$rc" in
+        0)
+            RESULT_OK="$RESULT_OK $id"
+            ui_done "$label" "$elapsed"
+            ;;
+        100)
+            RESULT_SKIP="$RESULT_SKIP $id"
+            ui_skip "$label"
+            ;;
+        *)
+            RESULT_FAIL="$RESULT_FAIL $id"
+            ui_error "Falhou: ${label} (continuando)"
+            ;;
+    esac
+    return 0
+}
+
+run_category() {
+    local cat="$1" rec id c label def
+    for rec in "${ITEM_DB[@]}"; do
+        IFS='|' read -r id c label def <<< "$rec"
+        [[ "$c" == "$cat" ]] || continue
+        item_selected "$id" || continue
+        run_item "$id" "$label"
+    done
+    return 0
+}
+
+result_ok() {
+    case " $RESULT_OK " in
+        *" $1 "*) return 0 ;;
+    esac
+    return 1
+}
+
+# -----------------------------------------------------------------------------
+# Configurações geradas (.zshrc, starship.toml, ghostty config)
+# -----------------------------------------------------------------------------
+backup_and_install_file() {
+    local src="$1"
+    local dest="$2"
+    if [[ -f "$dest" ]]; then
+        local backup="${dest}.backup.$(date +%Y%m%d%H%M%S)"
+        cp "$dest" "$backup"
+        ui_info "Backup: $backup"
     fi
+    mkdir -p "$(dirname "$dest")"
+    cp "$src" "$dest"
+    return 0
+}
 
-    cat > "$zshrc" << 'ZSHRC_HEAD'
+zshrc_block_header() {
+    cat <<'EOF'
 # =============================================================================
-# ZSH Configuration - Versão Limpa e Organizada (gerado por mac_env_install.sh)
+# ZSH Configuration — gerado por mac_env_install.sh (v3)
 # =============================================================================
+EOF
+}
 
-# -----------------------------------------------------------------------------
+zshrc_block_p10k_instant() {
+    cat <<'EOF'
+
 # Powerlevel10k Instant Prompt
-# -----------------------------------------------------------------------------
 if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
+EOF
+}
 
-# -----------------------------------------------------------------------------
-# Oh My Zsh Configuration
-# -----------------------------------------------------------------------------
+zshrc_block_omz() {
+    cat <<'EOF'
+
+# Oh My Zsh
 export ZSH="$HOME/.oh-my-zsh"
+EOF
+    if [[ -n "$PROMPT_ACTIVE" ]]; then
+        echo 'ZSH_THEME=""'
+    else
+        echo 'ZSH_THEME="robbyrussell"'
+    fi
+    cat <<'EOF'
 plugins=(git)
 source $ZSH/oh-my-zsh.sh
+EOF
+}
 
-# -----------------------------------------------------------------------------
-# PATH Configuration
-# -----------------------------------------------------------------------------
+zshrc_block_path() {
+    cat <<'EOF'
+
 # Homebrew (Apple Silicon: /opt/homebrew | Intel: /usr/local)
 export PATH="/opt/homebrew/bin:$PATH"
 [[ -x /usr/local/bin/brew ]] && export PATH="/usr/local/bin:$PATH"
+EOF
+}
 
-# Python Environment Manager (pyenv)
+zshrc_block_pyenv() {
+    cat <<'EOF'
+
+# pyenv + pyenv-virtualenv
 export PYENV_ROOT="$HOME/.pyenv"
 export PATH="$PYENV_ROOT/bin:$PATH"
-
-# Android Development (descomente e ajuste se usar Android Studio)
-# export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
-# export PATH="$JAVA_HOME/bin:$PATH"
-# export PATH="$PATH:$HOME/Library/Android/sdk/platform-tools"
-
-# -----------------------------------------------------------------------------
-# Language Runtime Initialization
-# -----------------------------------------------------------------------------
 if command -v pyenv 1>/dev/null 2>&1; then
   eval "$(pyenv init -)"
+  if command -v pyenv-virtualenv-init 1>/dev/null 2>&1; then
+    eval "$(pyenv virtualenv-init -)"
+  fi
 fi
+EOF
+}
 
-# -----------------------------------------------------------------------------
+zshrc_block_java() {
+    cat <<'EOF'
+
+# OpenJDK 21 (keg-only no Homebrew)
+if [[ -d /opt/homebrew/opt/openjdk@21 ]]; then
+  export JAVA_HOME="/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home"
+  export PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH"
+elif [[ -d /usr/local/opt/openjdk@21 ]]; then
+  export JAVA_HOME="/usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home"
+  export PATH="/usr/local/opt/openjdk@21/bin:$PATH"
+fi
+EOF
+}
+
+zshrc_block_android_sdk() {
+    cat <<'EOF'
+
+# Android SDK
+export PATH="$PATH:$HOME/Library/Android/sdk/platform-tools"
+EOF
+}
+
+zshrc_block_api_keys() {
+    cat <<'EOF'
+
 # API Keys & Tokens (preencha com seus valores no novo Mac)
-# -----------------------------------------------------------------------------
 # export MAPBOX_DOWNLOADS_TOKEN="seu_token_aqui"
 # export OPENAI_API_KEY="sua_chave_aqui"
+EOF
+}
 
-# -----------------------------------------------------------------------------
-# ZSH Plugins (instalados via Homebrew)
-# zsh-syntax-highlighting deve ser o ÚLTIMO plugin carregado
-# -----------------------------------------------------------------------------
+zshrc_block_autosuggestions() {
+    cat <<'EOF'
+
+# zsh-autosuggestions (Homebrew)
 if [[ -f "$(brew --prefix 2>/dev/null)/share/zsh-autosuggestions/zsh-autosuggestions.zsh" ]]; then
   source "$(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
 fi
-if [[ -f /opt/homebrew/share/powerlevel10k/powerlevel10k.zsh-theme ]]; then
-  source /opt/homebrew/share/powerlevel10k/powerlevel10k.zsh-theme
-elif [[ -f /usr/local/share/powerlevel10k/powerlevel10k.zsh-theme ]]; then
-  source /usr/local/share/powerlevel10k/powerlevel10k.zsh-theme
-fi
-if [[ -f "$(brew --prefix 2>/dev/null)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]]; then
-  source "$(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
-fi
+EOF
+}
 
-# -----------------------------------------------------------------------------
-# Powerlevel10k - Execute 'p10k configure' para personalizar o prompt
-# -----------------------------------------------------------------------------
-[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+zshrc_block_fzf() {
+    cat <<'EOF'
 
-# -----------------------------------------------------------------------------
-# eza (ls com ícones) - instalado pelo mac_env_install.sh
-# Use 'ls' normalmente; será eza --icons. Para ls original: \ls ou command ls
-# -----------------------------------------------------------------------------
+# fzf — Ctrl-R (histórico), Ctrl-T (arquivos)
+if command -v fzf &>/dev/null; then
+  source <(fzf --zsh)
+fi
+EOF
+}
+
+zshrc_block_zoxide() {
+    cat <<'EOF'
+
+# zoxide — use "z <parte-do-caminho>" no lugar de cd
+if command -v zoxide &>/dev/null; then
+  eval "$(zoxide init zsh)"
+fi
+EOF
+}
+
+zshrc_block_eza() {
+    cat <<'EOF'
+
+# eza (ls com ícones) — para o ls original: \ls ou command ls
 if command -v eza &>/dev/null; then
   alias ls='eza --icons'
   alias ll='eza -l --icons'
   alias la='eza -la --icons'
   alias lt='eza --tree --icons'
 fi
+EOF
+}
+
+zshrc_block_bat() {
+    cat <<'EOF'
+
+# bat (cat com syntax highlight) — descomente para substituir o cat:
+# alias cat='bat --paging=never --style=plain'
+EOF
+}
+
+zshrc_block_syntax_highlighting() {
+    cat <<'EOF'
+
+# zsh-syntax-highlighting — deve ser o ÚLTIMO plugin carregado
+if [[ -f "$(brew --prefix 2>/dev/null)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]]; then
+  source "$(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+fi
+EOF
+}
+
+zshrc_block_p10k_source() {
+    cat <<'EOF'
+
+# Powerlevel10k — execute 'p10k configure' para personalizar
+if [[ -f /opt/homebrew/share/powerlevel10k/powerlevel10k.zsh-theme ]]; then
+  source /opt/homebrew/share/powerlevel10k/powerlevel10k.zsh-theme
+elif [[ -f /usr/local/share/powerlevel10k/powerlevel10k.zsh-theme ]]; then
+  source /usr/local/share/powerlevel10k/powerlevel10k.zsh-theme
+fi
+[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+EOF
+}
+
+zshrc_block_starship() {
+    cat <<'EOF'
+
+# Starship — config em ~/.config/starship.toml (deve ser a última linha)
+if command -v starship &>/dev/null; then
+  eval "$(starship init zsh)"
+fi
+EOF
+}
+
+zshrc_block_footer() {
+    cat <<'EOF'
 
 # =============================================================================
 # Fim da Configuração
 # =============================================================================
-ZSHRC_HEAD
-
-    ui_success ".zshrc escrito em $zshrc"
-    ui_warn "API keys (MAPBOX, OPENAI) estão comentadas. Edite ~/.zshrc e preencha se precisar."
+EOF
 }
 
-# -----------------------------------------------------------------------------
-# Powerlevel10k: prompt de configuração
-# -----------------------------------------------------------------------------
-setup_p10k() {
-    if [[ -f "$HOME/.p10k.zsh" ]]; then
-        ui_success "~/.p10k.zsh já existe"
+write_zshrc() {
+    local tmp
+    tmp="$(mktempfile)"
+    zshrc_block_header >> "$tmp"
+    if [[ "$PROMPT_ACTIVE" == "p10k" ]]; then
+        zshrc_block_p10k_instant >> "$tmp"
+    fi
+    if item_selected ohmyzsh; then
+        zshrc_block_omz >> "$tmp"
+    fi
+    zshrc_block_path >> "$tmp"
+    if item_selected pyenv; then
+        zshrc_block_pyenv >> "$tmp"
+    fi
+    if item_selected openjdk21; then
+        zshrc_block_java >> "$tmp"
+    fi
+    if item_selected platform-tools; then
+        zshrc_block_android_sdk >> "$tmp"
+    fi
+    zshrc_block_api_keys >> "$tmp"
+    if item_selected ohmyzsh; then
+        zshrc_block_autosuggestions >> "$tmp"
+    fi
+    if item_selected fzf; then
+        zshrc_block_fzf >> "$tmp"
+    fi
+    if item_selected zoxide; then
+        zshrc_block_zoxide >> "$tmp"
+    fi
+    if item_selected eza; then
+        zshrc_block_eza >> "$tmp"
+    fi
+    if item_selected bat; then
+        zshrc_block_bat >> "$tmp"
+    fi
+    if item_selected ohmyzsh; then
+        zshrc_block_syntax_highlighting >> "$tmp"
+    fi
+    case "$PROMPT_ACTIVE" in
+        p10k)     zshrc_block_p10k_source >> "$tmp" ;;
+        starship) zshrc_block_starship >> "$tmp" ;;
+    esac
+    zshrc_block_footer >> "$tmp"
+    backup_and_install_file "$tmp" "$HOME/.zshrc"
+    ui_success ".zshrc escrito em $HOME/.zshrc"
+    ui_warn "API keys (MAPBOX, OPENAI) estão comentadas. Edite ~/.zshrc se precisar."
+    return 0
+}
+
+write_starship_config() {
+    local tmp
+    tmp="$(mktempfile)"
+    cat > "$tmp" <<'EOF'
+# starship.toml — gerado por mac_env_install.sh (v3) · paleta Event Horizon
+"$schema" = 'https://starship.rs/config-schema.json'
+add_newline = true
+palette = "event_horizon"
+
+[character]
+success_symbol = "[❯](bold amber)"
+error_symbol = "[❯](bold red)"
+
+[directory]
+style = "bold amber"
+truncation_length = 4
+truncate_to_repo = true
+
+[git_branch]
+style = "info"
+
+[git_status]
+style = "ember"
+
+[cmd_duration]
+min_time = 2000
+style = "muted"
+format = "[$duration]($style) "
+
+[nodejs]
+style = "info"
+
+[python]
+style = "info"
+
+[java]
+style = "info"
+
+[docker_context]
+disabled = true
+
+[palettes.event_horizon]
+ember = "#c47800"
+amber = "#f5b000"
+hot = "#ffd75e"
+info = "#8892b0"
+muted = "#5a6480"
+cyan = "#00e5cc"
+red = "#e63946"
+EOF
+    backup_and_install_file "$tmp" "$HOME/.config/starship.toml"
+    ui_success "starship.toml escrito em ~/.config/starship.toml"
+    return 0
+}
+
+write_ghostty_config() {
+    local dest="$HOME/.config/ghostty/config"
+    if [[ -f "$dest" ]]; then
+        ui_skip "~/.config/ghostty/config — existente, preservado"
         return 0
     fi
-    ui_info "Na primeira abertura do zsh, o p10k pode perguntar se deseja configurar."
-    ui_info "Ou execute manualmente: zsh && p10k configure"
-    ui_success "Nada a fazer agora para p10k"
+    local font="JetBrainsMono Nerd Font"
+    if ! item_selected font-jetbrains && item_selected font-meslo; then
+        font="MesloLGS Nerd Font"
+    fi
+    local tmp
+    tmp="$(mktempfile)"
+    cat > "$tmp" <<EOF
+# ghostty config — gerado por mac_env_install.sh (v3)
+font-family = ${font}
+font-size = 14
+cursor-color = #f5b000
+window-padding-x = 8
+window-padding-y = 8
+background = #0e0e16
+foreground = #e6e6f0
+EOF
+    backup_and_install_file "$tmp" "$dest"
+    ui_success "Ghostty configurado (fonte: ${font}, cursor âmbar)"
+    return 0
+}
+
+setup_p10k() {
+    if [[ -f "$HOME/.p10k.zsh" ]]; then
+        ui_success "~/.p10k.zsh já existe — configuração mantida"
+        return 0
+    fi
+    ui_info "Na primeira abertura do zsh, rode: p10k configure"
+    return 0
 }
 
 # -----------------------------------------------------------------------------
-# Resumo e instruções finais
+# Relatório final
 # -----------------------------------------------------------------------------
-print_summary() {
-    ui_section "Concluído"
-    if [[ -n "$GUM" ]]; then
-        local content
-        content="Próximos passos:
-  1. No iTerm2: Settings → Profiles → Text → Font → MesloLGSNerdFontMono-Regular
-  2. No Cursor: terminal.integrated.fontFamily → \"MesloLGSNerdFont\"
-  3. Abra o iTerm2 (ou Terminal) e rode:  zsh
-  4. Se aparecer o assistente do Powerlevel10k, configure ou pule.
-  5. ls usa eza com ícones (pastas/arquivos). Árvore: lt ou eza --tree --icons
-  6. Edite ~/.zshrc e descomente/preencha API keys se precisar.
-  7. Para usar zsh como shell padrão:  chsh -s \$(which zsh)
-
-Fonte: MesloLGSNerdFont (v3.x) — U+F8FF vazio → macOS exibe  via fallback.
-Android Studio / JAVA_HOME: se for usar, descomente as linhas no .zshrc."
-        "$GUM" style --border rounded --border-foreground "#5a6480" --padding "0 1" "$content"
+format_duration() {
+    local s="$1"
+    if [[ $s -ge 60 ]]; then
+        echo "$((s / 60))m$((s % 60))s"
     else
-        echo -e "${INFO}"
-        echo "Próximos passos:"
-        echo "  1. No iTerm2: Settings → Profiles → Text → Font → MesloLGSNerdFontMono-Regular"
-        echo "  2. No Cursor: terminal.integrated.fontFamily → \"MesloLGSNerdFont\""
-        echo "  3. Abra o iTerm2 (ou Terminal) e rode:  zsh"
-        echo "  4. Se aparecer o assistente do Powerlevel10k, configure ou pule."
-        echo "  5. ls usa eza com ícones (pastas/arquivos). Árvore: lt ou eza --tree --icons"
-        echo "  6. Edite ~/.zshrc e descomente/preencha API keys se precisar."
-        echo "  7. Para usar zsh como shell padrão:  chsh -s \$(which zsh)"
-        echo ""
-        echo "Fonte: MesloLGSNerdFont (v3.x) — U+F8FF vazio → macOS exibe  via fallback."
-        echo "Android Studio / JAVA_HOME: se for usar, descomente as linhas no .zshrc."
-        echo -e "${NC}"
+        echo "${s}s"
     fi
+}
+
+print_final_report() {
+    local total_secs="$1"
+    echo ""
+    if [[ "$COLOR_OK" == "1" ]]; then
+        rule_gradient "━"
+    fi
+
+    local n_ok n_skip n_fail
+    n_ok="$(count_words "$RESULT_OK")"
+    n_skip="$(count_words "$RESULT_SKIP")"
+    n_fail="$(count_words "$RESULT_FAIL")"
+
+    echo -ne "${BOLD}"
+    gradient_text "  ◆  instalação concluída em $(format_duration "$total_secs")  ◆"
+    echo -e "  ${SUCCESS}✓ ${n_ok} instalados${NC}  ${MUTED}◇ ${n_skip} já presentes${NC}  ${ERROR}$( [[ "$n_fail" -gt 0 ]] && echo "✗ ${n_fail} falharam" )${NC}"
+    echo ""
+
+    if [[ "$n_fail" -gt 0 ]]; then
+        local body="" id
+        for id in $RESULT_FAIL; do
+            body="${body}✗ $(item_label "$id")"$'\n'
+        done
+        body="${body}"$'\n'"Re-execute com --verbose para ver os logs."
+        if [[ -n "$GUM" ]]; then
+            "$GUM" style --border rounded --border-foreground "#e63946" --padding "0 2" --width "$(($(term_cols) - 4))" "$body"
+        else
+            echo -e "${ERROR}Falhas:${NC}"
+            echo "$body"
+        fi
+    fi
+
+    local steps=""
+    add_step() {
+        steps="${steps}  • $1"$'\n'
+    }
+    if category_selected terminal; then
+        add_step "Recarregue o shell:  exec zsh"
+    fi
+    if result_ok ghostty || { item_selected ghostty && [[ ! -f "$HOME/.config/ghostty/config" ]]; }; then
+        add_step "Abra o Ghostty — fonte e cursor âmbar já configurados"
+    fi
+    if item_selected iterm2; then
+        add_step "iTerm2: Settings → Profiles → Text → Font → fonte Nerd Font instalada"
+    fi
+    if [[ "$PROMPT_ACTIVE" == "starship" ]]; then
+        add_step "Prompt Starship ativo — ajuste em ~/.config/starship.toml"
+    fi
+    if [[ "$PROMPT_ACTIVE" == "p10k" ]]; then
+        add_step "Powerlevel10k: rode 'p10k configure' se quiser reconfigurar"
+    fi
+    if result_ok docker; then
+        add_step "Abra o Docker.app uma vez para concluir a instalação"
+    fi
+    if result_ok ngrok; then
+        add_step "ngrok: rode 'ngrok config add-authtoken <token>'"
+    fi
+    if result_ok supabase; then
+        add_step "Supabase: rode 'supabase login'"
+    fi
+    if result_ok redis; then
+        add_step "Redis como serviço: brew services start redis"
+    fi
+    if result_ok android-studio; then
+        add_step "Abra o Android Studio uma vez para instalar o SDK"
+    fi
+    if ! category_selected terminal && [[ -n "$RESULT_OK" ]]; then
+        add_step "Seu ~/.zshrc não foi alterado — adicione os inits (pyenv, JAVA_HOME) se precisar"
+    fi
+
+    if [[ -n "$steps" ]]; then
+        local card="Próximos passos:"$'\n'"$steps"
+        if [[ -n "$GUM" ]]; then
+            "$GUM" style --border rounded --border-foreground "#5a6480" --padding "0 1" --width "$(($(term_cols) - 4))" "$card"
+        else
+            echo -e "${INFO}${card}${NC}"
+        fi
+    fi
+
+    if [[ "$n_fail" -gt 0 ]]; then
+        return 1
+    fi
+    return 0
 }
 
 # -----------------------------------------------------------------------------
 # Main
 # -----------------------------------------------------------------------------
 main() {
+    local main_start=$SECONDS
+
     bootstrap_gum_temp || true
+    apply_gum_theme
     print_installer_banner
     print_gum_status
     detect_macos_or_die
 
+    resolve_selection
+    compute_stages
+    print_plan_summary
+
+    if [[ "$DRY_RUN" == "1" ]]; then
+        ui_info "--dry-run: nada foi instalado."
+        exit 0
+    fi
+
+    if can_prompt; then
+        if ! gum_confirm_tty "Instalar agora?" --affirmative "Instalar" --negative "Cancelar"; then
+            ui_info "Instalação cancelada."
+            exit 0
+        fi
+    fi
+
     install_xcode_clt
 
-    ui_stage "Preparando ambiente"
+    ui_stage "Base"
     install_homebrew
 
-    ui_stage "Instalando iTerm2 e ferramentas"
-    install_iterm2
-    install_oh_my_zsh
-    install_zsh_plugins
-    install_pyenv
-    install_eza
+    local rec id label desc
+    for rec in "${CATEGORY_DB[@]}"; do
+        IFS='|' read -r id label desc <<< "$rec"
+        if category_selected "$id"; then
+            ui_stage "$label"
+            run_category "$id"
+        fi
+    done
 
-    ui_stage "Instalando fontes"
-    install_meslo_nerd_font
+    if category_selected terminal; then
+        ui_stage "Configurações"
+        write_zshrc
+        if [[ "$PROMPT_ACTIVE" == "starship" ]]; then
+            write_starship_config
+        fi
+        if [[ "$PROMPT_ACTIVE" == "p10k" ]]; then
+            setup_p10k
+        fi
+        if item_selected ghostty; then
+            write_ghostty_config
+        fi
+    fi
 
-    ui_stage "Configurando shell"
-    write_zshrc
-    setup_p10k
-
-    print_summary
+    print_final_report $((SECONDS - main_start))
 }
 
-# Suporta --verbose
-for arg in "$@"; do
-    case "$arg" in
-        --verbose|-v) VERBOSE=1 ;;
-    esac
-done
-
+parse_args "$@"
 main
