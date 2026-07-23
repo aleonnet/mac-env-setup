@@ -412,7 +412,7 @@ print_installer_banner() {
         "               ░░▒▒▓▓██████████▓▓▒▒░░"
     echo ""
     shimmer_line "               ◆  M A C · E N V  ◆"
-    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.1.0${NC}"
+    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.2.0${NC}"
     echo ""
     if [[ -t 1 ]]; then
         tput cnorm 2>/dev/null || true
@@ -588,9 +588,8 @@ run_quiet_step() {
 CATEGORY_DB=(
     "terminal|Terminal & Shell|Ghostty, Oh My Zsh, prompt, fontes, eza/fzf/zoxide/bat"
     "dev|Dev Essentials|git, gh, jq, wget, Docker, Node/pnpm/bun, pyenv"
-    "cloud|Cloud & Infra|awscli, kubectl, supabase, ngrok, redis"
+    "cloud|Cloud & Infra|awscli, supabase"
     "android|Mobile Android|OpenJDK 21, platform-tools, Android Studio"
-    "ios|Mobile iOS|CocoaPods"
     "apps|Apps|VS Code, Cursor"
 )
 
@@ -616,14 +615,10 @@ ITEM_DB=(
     "node|dev|Node.js + pnpm + bun|1|f:node f:pnpm f:bun|runtime JS + gerenciadores de pacote rápidos"
     "pyenv|dev|pyenv + pyenv-virtualenv|1|f:pyenv f:pyenv-virtualenv|múltiplas versões de Python + virtualenvs"
     "awscli|cloud|AWS CLI|1|f:awscli|gerencia serviços AWS pelo terminal"
-    "kubectl|cloud|kubectl|1|f:kubernetes-cli|controla clusters Kubernetes"
     "supabase|cloud|Supabase CLI|1|f:supabase|Supabase local + migrations + deploy"
-    "ngrok|cloud|ngrok|1|c:ngrok|expõe localhost na internet (túneis)"
-    "redis|cloud|Redis|1|f:redis|banco chave-valor em memória (cache/filas)"
     "openjdk21|android|OpenJDK 21|1|f:openjdk@21|Java 21 para builds Android/JVM"
     "platform-tools|android|Android platform-tools (adb)|1|c:android-platform-tools|adb/fastboot para devices Android"
     "android-studio|android|Android Studio|0|c:android-studio|IDE Android completa (pesada)"
-    "cocoapods|ios|CocoaPods|1|f:cocoapods|dependências de projetos iOS/Xcode"
     "vscode|apps|Visual Studio Code|1|c:visual-studio-code|editor da Microsoft"
     "cursor|apps|Cursor|1|c:cursor|editor com IA integrada"
 )
@@ -728,10 +723,10 @@ item_desc() {
 
 preset_categories() {
     case "$1" in
-        completo) echo "terminal dev cloud android ios apps" ;;
+        completo) echo "terminal dev cloud android apps" ;;
         terminal) echo "terminal" ;;
         dev)      echo "terminal dev apps" ;;
-        mobile)   echo "terminal dev android ios" ;;
+        mobile)   echo "terminal dev android" ;;
         *)        return 1 ;;
     esac
 }
@@ -786,7 +781,7 @@ Sem opções (em terminal interativo): abre o seletor de perfis e categorias.
 
 Opções:
   --profile <p>       Perfil sem interação: completo | terminal | dev | mobile
-  --categories a,b,c  Categorias sem interação: terminal,dev,cloud,android,ios,apps
+  --categories a,b,c  Categorias sem interação: terminal,dev,cloud,android,apps
   --all               Tudo (equivale a --profile completo)
   --upgrade           Atualiza itens já instalados que tenham versão nova no brew
   --yes, -y           Não perguntar nada; usa o perfil padrão (terminal)
@@ -819,7 +814,7 @@ print_catalog() {
         done
     done
     echo ""
-    echo "Perfis: completo · terminal · dev (terminal+dev+apps) · mobile (terminal+dev+android+ios)"
+    echo "Perfis: completo · terminal · dev (terminal+dev+apps) · mobile (terminal+dev+android)"
 }
 
 parse_args() {
@@ -874,16 +869,16 @@ selection_cancelled() {
 select_profile() {
     local sel
     sel="$(gum_choose_tty --header "Escolha um perfil de instalação" \
-        "Completo — tudo: terminal, dev, cloud, android, ios, apps" \
+        "Completo — tudo: terminal, dev, cloud, android, apps" \
         "Terminal bonito — Ghostty, Starship, fontes, eza/fzf/zoxide/bat" \
         "Dev — Terminal bonito + git, Docker, Node, pyenv + apps" \
-        "Mobile — Dev básico + Android + iOS" \
+        "Mobile — Dev básico + Android" \
         "Personalizado — escolher categorias")" || selection_cancelled
     case "$sel" in
-        Completo*)  PROFILE_LABEL="Completo";  apply_categories terminal dev cloud android ios apps ;;
+        Completo*)  PROFILE_LABEL="Completo";  apply_categories terminal dev cloud android apps ;;
         Terminal*)  PROFILE_LABEL="Terminal bonito"; apply_categories terminal ;;
         Dev*)       PROFILE_LABEL="Dev";       apply_categories terminal dev apps ;;
-        Mobile*)    PROFILE_LABEL="Mobile";    apply_categories terminal dev android ios ;;
+        Mobile*)    PROFILE_LABEL="Mobile";    apply_categories terminal dev android ;;
         Personalizado*)
             PROFILE_LABEL="Personalizado"
             refine_categories
@@ -968,7 +963,7 @@ interactive_selection() {
 resolve_selection() {
     if [[ "$ALL" == "1" ]]; then
         PROFILE_LABEL="Completo"
-        apply_categories terminal dev cloud android ios apps
+        apply_categories terminal dev cloud android apps
         return 0
     fi
     if [[ -n "$PROFILE" ]]; then
@@ -1357,39 +1352,12 @@ install_awscli() {
     return 0
 }
 
-install_kubectl() {
-    ensure_brew_in_path
-    if command -v kubectl &>/dev/null; then
-        return 100
-    fi
-    run_quiet_step "Instalando kubectl" brew install kubernetes-cli || return 1
-    return 0
-}
-
 install_supabase() {
     ensure_brew_in_path
     if command -v supabase &>/dev/null; then
         return 100
     fi
     run_quiet_step "Instalando Supabase CLI" brew install supabase/tap/supabase || return 1
-    return 0
-}
-
-install_ngrok() {
-    ensure_brew_in_path
-    if command -v ngrok &>/dev/null || brew list --cask ngrok &>/dev/null; then
-        return 100
-    fi
-    run_quiet_step "Instalando ngrok" brew install --cask ngrok || return 1
-    return 0
-}
-
-install_redis() {
-    ensure_brew_in_path
-    if brew list redis &>/dev/null; then
-        return 100
-    fi
-    run_quiet_step "Instalando Redis" brew install redis || return 1
     return 0
 }
 
@@ -1417,18 +1385,6 @@ install_android_studio() {
         return 100
     fi
     run_quiet_step "Instalando Android Studio" brew install --cask android-studio || return 1
-    return 0
-}
-
-install_cocoapods() {
-    ensure_brew_in_path
-    if ! xcode-select -p 2>/dev/null | grep -q "Xcode.app"; then
-        ui_warn "Xcode completo não detectado — instale pela App Store para builds iOS."
-    fi
-    if command -v pod &>/dev/null; then
-        return 100
-    fi
-    run_quiet_step "Instalando CocoaPods" brew install cocoapods || return 1
     return 0
 }
 
@@ -2054,14 +2010,8 @@ print_final_report() {
     if result_ok docker; then
         add_step "Abra o Docker.app uma vez para concluir a instalação"
     fi
-    if result_ok ngrok; then
-        add_step "ngrok: rode 'ngrok config add-authtoken <token>'"
-    fi
     if result_ok supabase; then
         add_step "Supabase: rode 'supabase login'"
-    fi
-    if result_ok redis; then
-        add_step "Redis como serviço: brew services start redis"
     fi
     if result_ok android-studio; then
         add_step "Abra o Android Studio uma vez para instalar o SDK"

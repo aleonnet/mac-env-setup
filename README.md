@@ -32,16 +32,17 @@ curl -fsSL https://raw.githubusercontent.com/aleonnet/mac-env-setup/main/mac_env
 | `completo` | tudo |
 | `terminal` | Terminal & Shell |
 | `dev` | Terminal & Shell + Dev Essentials + Apps |
-| `mobile` | Terminal & Shell + Dev Essentials + Android + iOS |
+| `mobile` | Terminal & Shell + Dev Essentials + Android |
 
 ## Categorias e itens
 
 - **terminal** — Ghostty *(padrão)* ou iTerm2, Oh My Zsh + zsh-autosuggestions + zsh-syntax-highlighting, prompt **Starship** *(padrão)* ou Powerlevel10k, JetBrainsMono Nerd Font *(padrão)* e/ou MesloLGS Nerd Font, eza, fzf, zoxide, bat
 - **dev** — git (Homebrew), GitHub CLI, jq, wget, Docker Desktop, Node.js + pnpm + bun, pyenv + pyenv-virtualenv
-- **cloud** — AWS CLI, kubectl, Supabase CLI, ngrok, Redis
+- **cloud** — AWS CLI, Supabase CLI
 - **android** — OpenJDK 21, android-platform-tools (adb); Android Studio opcional
-- **ios** — CocoaPods (Xcode completo é só via App Store)
 - **apps** — Visual Studio Code, Cursor
+
+Para iOS, use o Xcode (App Store) com Swift Package Manager — CocoaPods saiu do catálogo na v3.2.0. kubectl vem embutido no Docker Desktop.
 
 Veja tudo com `bash mac_env_install.sh --list`.
 
@@ -82,4 +83,4 @@ Variáveis de ambiente: `MACENV_USE_GUM` (`auto`/`1`/`0`), `MACENV_GUM_VERSION` 
 
 ## Pós-instalação
 
-O relatório final lista os passos específicos da sua seleção (abrir Docker.app na primeira vez, `ngrok config add-authtoken`, `supabase login`, `brew services start redis`, etc.). Recarregue o shell com `exec zsh`.
+O relatório final lista os passos específicos da sua seleção (abrir Docker.app na primeira vez, `supabase login`, etc.). Recarregue o shell com `exec zsh`.

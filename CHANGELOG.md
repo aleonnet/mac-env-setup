@@ -2,6 +2,11 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [3.2.0] - 2026-07-22
+
+### Removed
+- **ngrok**, **Redis**, **kubectl** e **CocoaPods** saíram do catálogo (eram de necessidades pontuais). kubectl já vem embutido no Docker Desktop; para iOS, o caminho moderno é Swift Package Manager no Xcode (App Store). A categoria **ios** foi removida (ficou vazia); perfil `mobile` agora é terminal+dev+android e `cloud` ficou com AWS CLI + Supabase CLI.
+
 ## [3.1.0] - 2026-07-22
 
 ### Added
