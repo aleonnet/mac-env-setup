@@ -32,7 +32,7 @@ curl -fsSL https://raw.githubusercontent.com/aleonnet/mac-env-setup/main/mac_env
 | `completo` | tudo |
 | `terminal` | Terminal & Shell |
 | `dev` | Terminal & Shell + Dev Essentials + Apps |
-| `mobile` | Terminal & Shell + Dev Essentials + Android |
+| `mobile` | Terminal & Shell + Dev Essentials + Android + iOS |
 
 ## Categorias e itens
 
@@ -40,9 +40,10 @@ curl -fsSL https://raw.githubusercontent.com/aleonnet/mac-env-setup/main/mac_env
 - **dev** — git (Homebrew), GitHub CLI, jq, wget, Docker Desktop, Node.js + pnpm + bun, pyenv + pyenv-virtualenv
 - **cloud** — AWS CLI, Supabase CLI
 - **android** — OpenJDK 21, android-platform-tools (adb); Android Studio opcional
+- **ios** — CocoaPods (necessário para builds Flutter iOS; o Xcode completo vem só da App Store)
 - **apps** — Visual Studio Code, Cursor
 
-Para iOS, use o Xcode (App Store) com Swift Package Manager — CocoaPods saiu do catálogo na v3.2.0. kubectl vem embutido no Docker Desktop.
+kubectl vem embutido no Docker Desktop e por isso não está no catálogo.
 
 Veja tudo com `bash mac_env_install.sh --list`.
 
@@ -66,6 +67,7 @@ Variáveis de ambiente: `MACENV_USE_GUM` (`auto`/`1`/`0`), `MACENV_GUM_VERSION` 
 - **`~/.zshrc`** — montado por blocos conforme a seleção (pyenv, JAVA_HOME, fzf, zoxide, eza, bat, plugins, prompt). Backup do anterior em `~/.zshrc.backup.<timestamp>` antes de **sobrescrever**.
 - **`~/.config/starship.toml`** — preset oficial do Starship: `tokyo-night` (padrão) ou `catppuccin-powerline`, escolhido no seletor (fallback Event Horizon embutido quando sem rede); backup antes de sobrescrever. Escolher Powerlevel10k mantém seu `~/.p10k.zsh` intacto e instala a MesloLGS (fonte recomendada do p10k).
 - **`~/.config/ghostty/config`** — fonte Nerd Font, cursor âmbar; **só é criado se não existir** (config existente é preservada).
+- **VS Code / Cursor** — `terminal.integrated.fontFamily` recebe a Nerd Font no `settings.json` de cada editor instalado (valor existente é preservado; backup antes de escrever).
 
 ## Comportamentos importantes
 

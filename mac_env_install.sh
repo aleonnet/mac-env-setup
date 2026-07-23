@@ -412,7 +412,7 @@ print_installer_banner() {
         "               ░░▒▒▓▓██████████▓▓▒▒░░"
     echo ""
     shimmer_line "               ◆  M A C · E N V  ◆"
-    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.4.0${NC}"
+    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.5.0${NC}"
     echo ""
     if [[ -t 1 ]]; then
         tput cnorm 2>/dev/null || true
@@ -590,6 +590,7 @@ CATEGORY_DB=(
     "dev|Dev Essentials|git, gh, jq, wget, Docker, Node/pnpm/bun, pyenv"
     "cloud|Cloud & Infra|awscli, supabase"
     "android|Mobile Android|OpenJDK 21, platform-tools, Android Studio"
+    "ios|Mobile iOS|CocoaPods (builds Flutter/iOS)"
     "apps|Apps|VS Code, Cursor"
 )
 
@@ -619,6 +620,7 @@ ITEM_DB=(
     "openjdk21|android|OpenJDK 21|1|f:openjdk@21|Java 21 para builds Android/JVM"
     "platform-tools|android|Android platform-tools (adb)|1|c:android-platform-tools|adb/fastboot para devices Android"
     "android-studio|android|Android Studio|0|c:android-studio|IDE Android completa (pesada)"
+    "cocoapods|ios|CocoaPods|1|f:cocoapods|dependências iOS — necessário para Flutter iOS"
     "vscode|apps|Visual Studio Code|1|c:visual-studio-code|editor da Microsoft"
     "cursor|apps|Cursor|1|c:cursor|editor com IA integrada"
 )
@@ -724,10 +726,10 @@ item_desc() {
 
 preset_categories() {
     case "$1" in
-        completo) echo "terminal dev cloud android apps" ;;
+        completo) echo "terminal dev cloud android ios apps" ;;
         terminal) echo "terminal" ;;
         dev)      echo "terminal dev apps" ;;
-        mobile)   echo "terminal dev android" ;;
+        mobile)   echo "terminal dev android ios" ;;
         *)        return 1 ;;
     esac
 }
@@ -782,7 +784,7 @@ Sem opções (em terminal interativo): abre o seletor de perfis e categorias.
 
 Opções:
   --profile <p>       Perfil sem interação: completo | terminal | dev | mobile
-  --categories a,b,c  Categorias sem interação: terminal,dev,cloud,android,apps
+  --categories a,b,c  Categorias sem interação: terminal,dev,cloud,android,ios,apps
   --all               Tudo (equivale a --profile completo)
   --upgrade           Atualiza itens já instalados que tenham versão nova no brew
   --yes, -y           Não perguntar nada; usa o perfil padrão (terminal)
@@ -815,7 +817,7 @@ print_catalog() {
         done
     done
     echo ""
-    echo "Perfis: completo · terminal · dev (terminal+dev+apps) · mobile (terminal+dev+android)"
+    echo "Perfis: completo · terminal · dev (terminal+dev+apps) · mobile (terminal+dev+android+ios)"
 }
 
 parse_args() {
@@ -870,16 +872,16 @@ selection_cancelled() {
 select_profile() {
     local sel
     sel="$(gum_choose_tty --header "Escolha um perfil de instalação" \
-        "Completo — tudo: terminal, dev, cloud, android, apps" \
+        "Completo — tudo: terminal, dev, cloud, android, ios, apps" \
         "Terminal bonito — Ghostty, Starship, fontes, eza/fzf/zoxide/bat" \
         "Dev — Terminal bonito + git, Docker, Node, pyenv + apps" \
-        "Mobile — Dev básico + Android" \
+        "Mobile — Dev básico + Android + iOS (Flutter)" \
         "Personalizado — escolher categorias")" || selection_cancelled
     case "$sel" in
-        Completo*)  PROFILE_LABEL="Completo";  apply_categories terminal dev cloud android apps ;;
+        Completo*)  PROFILE_LABEL="Completo";  apply_categories terminal dev cloud android ios apps ;;
         Terminal*)  PROFILE_LABEL="Terminal bonito"; apply_categories terminal ;;
         Dev*)       PROFILE_LABEL="Dev";       apply_categories terminal dev apps ;;
-        Mobile*)    PROFILE_LABEL="Mobile";    apply_categories terminal dev android ;;
+        Mobile*)    PROFILE_LABEL="Mobile";    apply_categories terminal dev android ios ;;
         Personalizado*)
             PROFILE_LABEL="Personalizado"
             refine_categories
@@ -972,7 +974,7 @@ interactive_selection() {
 resolve_selection() {
     if [[ "$ALL" == "1" ]]; then
         PROFILE_LABEL="Completo"
-        apply_categories terminal dev cloud android apps
+        apply_categories terminal dev cloud android ios apps
         return 0
     fi
     if [[ -n "$PROFILE" ]]; then
@@ -1388,6 +1390,18 @@ install_android_studio() {
         return 100
     fi
     run_quiet_step "Instalando Android Studio" brew install --cask android-studio || return 1
+    return 0
+}
+
+install_cocoapods() {
+    ensure_brew_in_path
+    if ! xcode-select -p 2>/dev/null | grep -q "Xcode.app"; then
+        ui_warn "Xcode completo não detectado — builds Flutter iOS exigem o Xcode da App Store."
+    fi
+    if command -v pod &>/dev/null; then
+        return 100
+    fi
+    run_quiet_step "Instalando CocoaPods" brew install cocoapods || return 1
     return 0
 }
 
@@ -1977,6 +1991,60 @@ EOF
     return 0
 }
 
+# Define terminal.integrated.fontFamily no settings.json do VS Code e do Cursor.
+# Preserva valor existente; não toca em settings.json não-parseável (JSONC etc).
+configure_editor_terminal_font() {
+    if ! command -v python3 &>/dev/null; then
+        ui_warn "python3 indisponível — defina terminal.integrated.fontFamily nos editores manualmente"
+        return 0
+    fi
+    local font="JetBrainsMono Nerd Font Mono"
+    if ! item_selected font-jetbrains && item_selected font-meslo; then
+        font="MesloLGS Nerd Font Mono"
+    fi
+    local py
+    py="$(mktempfile)"
+    cat > "$py" <<'PYEOF'
+import json, sys
+src, font, out = sys.argv[1], sys.argv[2], sys.argv[3]
+try:
+    with open(src) as f:
+        data = json.load(f)
+except FileNotFoundError:
+    data = {}
+except Exception:
+    sys.exit(2)
+if data.get("terminal.integrated.fontFamily"):
+    sys.exit(3)
+data["terminal.integrated.fontFamily"] = font
+with open(out, "w") as f:
+    json.dump(data, f, indent=4, ensure_ascii=False)
+    f.write("\n")
+PYEOF
+    local rec label appname supdir sfile tmpout rc
+    for rec in "VS Code|Visual Studio Code|Code" "Cursor|Cursor|Cursor"; do
+        IFS='|' read -r label appname supdir <<< "$rec"
+        [[ -d "/Applications/${appname}.app" ]] || continue
+        sfile="$HOME/Library/Application Support/${supdir}/User/settings.json"
+        tmpout="$(mktempfile)"
+        rc=0
+        python3 "$py" "$sfile" "$font" "$tmpout" || rc=$?
+        case "$rc" in
+            0)
+                backup_and_install_file "$tmpout" "$sfile"
+                ui_success "${label}: fonte do terminal definida (${font})"
+                ;;
+            3)
+                echo -e "${MUTED}◇ ${label}: fonte do terminal já definida — preservada${NC}"
+                ;;
+            *)
+                ui_warn "${label}: settings.json não parseável — adicione terminal.integrated.fontFamily manualmente"
+                ;;
+        esac
+    done
+    return 0
+}
+
 setup_p10k() {
     if [[ -f "$HOME/.p10k.zsh" ]]; then
         ui_success "~/.p10k.zsh já existe — configuração mantida"
@@ -2135,6 +2203,7 @@ main() {
         if item_selected ghostty; then
             write_ghostty_config
         fi
+        configure_editor_terminal_font
     fi
 
     print_final_report $((SECONDS - main_start))

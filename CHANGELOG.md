@@ -2,6 +2,12 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [3.5.0] - 2026-07-22
+
+### Added
+- **Fonte do terminal no VS Code e Cursor**: o estágio Configurações agora define `terminal.integrated.fontFamily` (Nerd Font instalada) no `settings.json` dos editores presentes — cria se faltar, preserva valor existente, backup antes de escrever e não toca em JSON não-parseável.
+- **CocoaPods de volta** (categoria `ios` restaurada): builds Flutter iOS dependem dele — a remoção na 3.2.0 partiu de premissa errada (não vem com o Xcode). Perfis `completo` e `mobile` voltam a incluir ios.
+
 ## [3.4.0] - 2026-07-22
 
 ### Added
