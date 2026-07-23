@@ -2,6 +2,11 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [3.5.1] - 2026-07-22
+
+### Fixed
+- `.zshrc` gerado preserva mais dois PATHs que a sobrescrita perdia: **`~/.local/bin`** (Claude Code, uv, pipx — sempre) e **Flutter SDK** (bloco auto-guardado que procura o SDK em caminhos comuns, incluindo `~/Development/FlutterProjects/flutter`). Antes, regenerar o `.zshrc` quebrava `claude` e `flutter` no PATH.
+
 ## [3.5.0] - 2026-07-22
 
 ### Added

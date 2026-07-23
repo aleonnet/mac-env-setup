@@ -412,7 +412,7 @@ print_installer_banner() {
         "               ░░▒▒▓▓██████████▓▓▒▒░░"
     echo ""
     shimmer_line "               ◆  M A C · E N V  ◆"
-    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.5.0${NC}"
+    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.5.1${NC}"
     echo ""
     if [[ -t 1 ]]; then
         tput cnorm 2>/dev/null || true
@@ -1705,6 +1705,28 @@ export PATH="$PATH:$HOME/Library/Android/sdk/platform-tools"
 EOF
 }
 
+zshrc_block_local_bin() {
+    cat <<'EOF'
+
+# Binários de usuário (~/.local/bin — Claude Code, uv, pipx)
+export PATH="$HOME/.local/bin:$PATH"
+EOF
+}
+
+zshrc_block_flutter() {
+    cat <<'EOF'
+
+# Flutter SDK (se presente em um dos caminhos comuns)
+for _fl in "$HOME/Development/FlutterProjects/flutter" "$HOME/development/flutter" "$HOME/flutter"; do
+  if [[ -d "$_fl/bin" ]]; then
+    export PATH="$PATH:$_fl/bin"
+    break
+  fi
+done
+unset _fl
+EOF
+}
+
 zshrc_block_bun() {
     cat <<'EOF'
 
@@ -1839,7 +1861,9 @@ write_zshrc() {
     if item_selected platform-tools; then
         zshrc_block_android_sdk >> "$tmp"
     fi
-    zshrc_block_bun >> "$tmp"   # auto-guardado: só ativa se ~/.bun existir
+    zshrc_block_local_bin >> "$tmp"   # ~/.local/bin (Claude Code, uv, pipx)
+    zshrc_block_flutter >> "$tmp"     # auto-guardado: só ativa se o SDK existir
+    zshrc_block_bun >> "$tmp"         # auto-guardado: só ativa se ~/.bun existir
     zshrc_block_api_keys >> "$tmp"
     if item_selected zsh-essentials; then
         zshrc_block_autosuggestions >> "$tmp"
