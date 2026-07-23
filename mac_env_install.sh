@@ -283,26 +283,73 @@ ramp_rgb_at() {
     B=$((b1 + (B - b1) * frac / 1000))
 }
 
-# gradient_text <texto> — imprime o texto com gradiente horizontal da rampa
-gradient_text() {
+# gradient_render <texto> [fase 0..1999] — gradiente horizontal, sem newline.
+# A fase desloca a rampa (espelhada em 1000) para o efeito shimmer.
+gradient_render() {
     local text="$1"
+    local phase="${2:-0}"
     local len=${#text}
     if [[ "$COLOR_OK" != "1" || $len -le 1 ]]; then
-        printf '%s\n' "$text"
+        printf '%s' "$text"
         return 0
     fi
-    local i ch esc out=""
+    local i ch esc out="" p
     for ((i = 0; i < len; i++)); do
         ch="${text:$i:1}"
         if [[ "$ch" == " " ]]; then
             out+=" "
             continue
         fi
-        ramp_rgb_at $((i * 1000 / (len - 1)))
+        p=$(((i * 1000 / (len - 1) + phase) % 2000))
+        if [[ $p -gt 1000 ]]; then
+            p=$((2000 - p))
+        fi
+        ramp_rgb_at "$p"
         printf -v esc '\033[38;2;%d;%d;%dm' "$R" "$G" "$B"
         out+="${esc}${ch}"
     done
-    printf '%s\033[0m\n' "$out"
+    printf '%s\033[0m' "$out"
+}
+
+gradient_text() {
+    gradient_render "$1" "${2:-0}"
+    printf '\n'
+}
+
+# shimmer_line <texto> — a luz da rampa percorre o texto (âmbar -> branco-quente)
+shimmer_line() {
+    local text="$1"
+    if [[ "$ANIM_OK" != "1" ]]; then
+        gradient_text "$text"
+        return 0
+    fi
+    local phase
+    for phase in 0 180 360 540 720 900 1080 1260 1440; do
+        printf '\r'
+        gradient_render "$text" "$phase"
+        sleep 0.045
+    done
+    printf '\r'
+    gradient_render "$text"
+    printf '\n'
+}
+
+# reveal_sweep <texto> — revelação esquerda->direita (ignição)
+reveal_sweep() {
+    local text="$1"
+    if [[ "$ANIM_OK" != "1" ]]; then
+        gradient_text "$text"
+        return 0
+    fi
+    local len=${#text} k
+    for k in 1 2 3 4; do
+        printf '\r'
+        gradient_render "${text:0:$((len * k / 5))}"
+        sleep 0.03
+    done
+    printf '\r'
+    gradient_render "$text"
+    printf '\n'
 }
 
 term_cols() {
@@ -323,6 +370,15 @@ rule_gradient() {
     printf -v line '%*s' "$w" ''
     line=${line// /$char}
     gradient_text "$line"
+}
+
+rule_sweep() {
+    local char="${1:-━}"
+    local w line
+    w="$(term_cols)"
+    printf -v line '%*s' "$w" ''
+    line=${line// /$char}
+    reveal_sweep "$line"
 }
 
 reveal_lines() {
@@ -355,9 +411,8 @@ print_installer_banner() {
         "           ░▒▓████████████████████████▓▒░" \
         "               ░░▒▒▓▓██████████▓▓▒▒░░"
     echo ""
-    echo -ne "${BOLD}"
-    gradient_text "               ◆  M A C · E N V  ◆"
-    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.0.1${NC}"
+    shimmer_line "               ◆  M A C · E N V  ◆"
+    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.1.0${NC}"
     echo ""
     if [[ -t 1 ]]; then
         tput cnorm 2>/dev/null || true
@@ -468,7 +523,7 @@ ui_stage() {
         fi
         printf -v pad '%*s' "$fill" ''
         pad=${pad// /━}
-        gradient_text "${head}${pad}"
+        reveal_sweep "${head}${pad}"
         progress_orbit_line
     else
         echo "== [${INSTALL_STAGE_CURRENT}/${INSTALL_STAGE_TOTAL}] ${title} =="
@@ -539,37 +594,38 @@ CATEGORY_DB=(
     "apps|Apps|VS Code, Cursor"
 )
 
-# id|categoria|rótulo|padrão(1/0) — itens 0 só entram por escolha explícita
+# id|categoria|rótulo|padrão(1/0)|pacotes(f:formula c:cask)|descrição
+# Itens com padrão 0 só entram por escolha explícita.
 ITEM_DB=(
-    "ghostty|terminal|Ghostty|1"
-    "iterm2|terminal|iTerm2|0"
-    "font-jetbrains|terminal|JetBrainsMono Nerd Font|1"
-    "font-meslo|terminal|MesloLGS Nerd Font|0"
-    "ohmyzsh|terminal|Oh My Zsh + plugins zsh|1"
-    "starship|terminal|Prompt Starship|1"
-    "p10k|terminal|Prompt Powerlevel10k|0"
-    "eza|terminal|eza (ls com ícones)|1"
-    "fzf|terminal|fzf (busca fuzzy)|1"
-    "zoxide|terminal|zoxide (cd inteligente)|1"
-    "bat|terminal|bat (cat com highlight)|1"
-    "git|dev|git (Homebrew)|1"
-    "gh|dev|GitHub CLI|1"
-    "jq|dev|jq|1"
-    "wget|dev|wget|1"
-    "docker|dev|Docker Desktop|1"
-    "node|dev|Node.js + pnpm + bun|1"
-    "pyenv|dev|pyenv + pyenv-virtualenv|1"
-    "awscli|cloud|AWS CLI|1"
-    "kubectl|cloud|kubectl|1"
-    "supabase|cloud|Supabase CLI|1"
-    "ngrok|cloud|ngrok|1"
-    "redis|cloud|Redis|1"
-    "openjdk21|android|OpenJDK 21|1"
-    "platform-tools|android|Android platform-tools (adb)|1"
-    "android-studio|android|Android Studio|0"
-    "cocoapods|ios|CocoaPods|1"
-    "vscode|apps|Visual Studio Code|1"
-    "cursor|apps|Cursor|1"
+    "ghostty|terminal|Ghostty|1|c:ghostty|terminal moderno acelerado por GPU (Metal)"
+    "iterm2|terminal|iTerm2|0|c:iterm2|terminal clássico do macOS"
+    "font-jetbrains|terminal|JetBrainsMono Nerd Font|1|c:font-jetbrains-mono-nerd-font|fonte mono com ícones para prompt e eza"
+    "font-meslo|terminal|MesloLGS Nerd Font|0|c:font-meslo-lg-nerd-font|fonte recomendada do Powerlevel10k"
+    "ohmyzsh|terminal|Oh My Zsh + plugins zsh|1|f:zsh-autosuggestions f:zsh-syntax-highlighting|framework zsh + sugestões e highlight de comandos"
+    "starship|terminal|Prompt Starship|1|f:starship|prompt rápido com config declarativa (TOML)"
+    "p10k|terminal|Prompt Powerlevel10k|0|f:powerlevel10k|prompt zsh clássico (em modo manutenção)"
+    "eza|terminal|eza (ls com ícones)|1|f:eza|ls moderno: ícones, árvore, git status"
+    "fzf|terminal|fzf (busca fuzzy)|1|f:fzf|Ctrl-R no histórico e Ctrl-T em arquivos"
+    "zoxide|terminal|zoxide (cd inteligente)|1|f:zoxide|cd que aprende: 'z projeto' pula direto"
+    "bat|terminal|bat (cat com highlight)|1|f:bat|cat com syntax highlight e numeração"
+    "git|dev|git (Homebrew)|1|f:git|git atualizado (o da Apple fica para trás)"
+    "gh|dev|GitHub CLI|1|f:gh|PRs, issues e auth do GitHub no terminal"
+    "jq|dev|jq|1|f:jq|filtra e transforma JSON no shell"
+    "wget|dev|wget|1|f:wget|downloads recursivos e em lote"
+    "docker|dev|Docker Desktop|1|c:docker-desktop|containers + Docker Compose"
+    "node|dev|Node.js + pnpm + bun|1|f:node f:pnpm f:bun|runtime JS + gerenciadores de pacote rápidos"
+    "pyenv|dev|pyenv + pyenv-virtualenv|1|f:pyenv f:pyenv-virtualenv|múltiplas versões de Python + virtualenvs"
+    "awscli|cloud|AWS CLI|1|f:awscli|gerencia serviços AWS pelo terminal"
+    "kubectl|cloud|kubectl|1|f:kubernetes-cli|controla clusters Kubernetes"
+    "supabase|cloud|Supabase CLI|1|f:supabase|Supabase local + migrations + deploy"
+    "ngrok|cloud|ngrok|1|c:ngrok|expõe localhost na internet (túneis)"
+    "redis|cloud|Redis|1|f:redis|banco chave-valor em memória (cache/filas)"
+    "openjdk21|android|OpenJDK 21|1|f:openjdk@21|Java 21 para builds Android/JVM"
+    "platform-tools|android|Android platform-tools (adb)|1|c:android-platform-tools|adb/fastboot para devices Android"
+    "android-studio|android|Android Studio|0|c:android-studio|IDE Android completa (pesada)"
+    "cocoapods|ios|CocoaPods|1|f:cocoapods|dependências de projetos iOS/Xcode"
+    "vscode|apps|Visual Studio Code|1|c:visual-studio-code|editor da Microsoft"
+    "cursor|apps|Cursor|1|c:cursor|editor com IA integrada"
 )
 
 SELECTED_CATEGORIES=""
@@ -635,15 +691,39 @@ category_id_by_label() {
 }
 
 item_label() {
-    local rec id cat label def
+    local rec id cat label def pkgs desc
     for rec in "${ITEM_DB[@]}"; do
-        IFS='|' read -r id cat label def <<< "$rec"
+        IFS='|' read -r id cat label def pkgs desc <<< "$rec"
         if [[ "$id" == "$1" ]]; then
             echo "$label"
             return 0
         fi
     done
     echo "$1"
+}
+
+item_pkgs() {
+    local rec id cat label def pkgs desc
+    for rec in "${ITEM_DB[@]}"; do
+        IFS='|' read -r id cat label def pkgs desc <<< "$rec"
+        if [[ "$id" == "$1" ]]; then
+            echo "$pkgs"
+            return 0
+        fi
+    done
+    return 1
+}
+
+item_desc() {
+    local rec id cat label def pkgs desc
+    for rec in "${ITEM_DB[@]}"; do
+        IFS='|' read -r id cat label def pkgs desc <<< "$rec"
+        if [[ "$id" == "$1" ]]; then
+            echo "$desc"
+            return 0
+        fi
+    done
+    return 1
 }
 
 preset_categories() {
@@ -659,9 +739,9 @@ preset_categories() {
 apply_categories() {
     SELECTED_CATEGORIES="$*"
     SELECTED_ITEMS=""
-    local rec id cat label def
+    local rec id cat label def pkgs desc
     for rec in "${ITEM_DB[@]}"; do
-        IFS='|' read -r id cat label def <<< "$rec"
+        IFS='|' read -r id cat label def pkgs desc <<< "$rec"
         category_selected "$cat" || continue
         if [[ "$def" == "1" ]]; then
             select_item "$id"
@@ -692,6 +772,7 @@ ALL=0
 DRY_RUN=0
 PROFILE=""
 CATEGORIES_ARG=""
+UPGRADE_FLAG=0
 
 print_usage() {
     cat <<'USAGE'
@@ -707,6 +788,7 @@ Opções:
   --profile <p>       Perfil sem interação: completo | terminal | dev | mobile
   --categories a,b,c  Categorias sem interação: terminal,dev,cloud,android,ios,apps
   --all               Tudo (equivale a --profile completo)
+  --upgrade           Atualiza itens já instalados que tenham versão nova no brew
   --yes, -y           Não perguntar nada; usa o perfil padrão (terminal)
   --dry-run           Mostra o que seria instalado e sai, sem tocar no sistema
   --list              Lista categorias e itens disponíveis e sai
@@ -724,14 +806,14 @@ print_catalog() {
         IFS='|' read -r id clabel cdesc <<< "$rec"
         echo ""
         echo "  ${id} — ${clabel}"
-        local irec
+        local irec ipkgs idesc
         for irec in "${ITEM_DB[@]}"; do
-            IFS='|' read -r iid cat label def <<< "$irec"
+            IFS='|' read -r iid cat label def ipkgs idesc <<< "$irec"
             if [[ "$cat" == "$id" ]]; then
                 if [[ "$def" == "1" ]]; then
-                    echo "     ◆ ${label}"
+                    echo "     ◆ ${label} — ${idesc}"
                 else
-                    echo "     ◇ ${label}"
+                    echo "     ◇ ${label} — ${idesc}"
                 fi
             fi
         done
@@ -746,6 +828,7 @@ parse_args() {
             --verbose|-v)   VERBOSE=1 ;;
             --yes|-y)       ASSUME_YES=1 ;;
             --all)          ALL=1 ;;
+            --upgrade)      UPGRADE_FLAG=1 ;;
             --dry-run)      DRY_RUN=1 ;;
             --profile)      PROFILE="${2:-}"; shift ;;
             --profile=*)    PROFILE="${1#*=}" ;;
@@ -965,7 +1048,7 @@ print_plan_summary() {
             cats+=("$id")
         fi
     done
-    local n=${#cats[@]} i=0 branch items irec iid icat ilabel idef
+    local n=${#cats[@]} i=0 branch items irec iid icat ilabel idef ipkgs idesc
     for c in "${cats[@]}"; do
         i=$((i + 1))
         if [[ $i -eq $n ]]; then
@@ -975,7 +1058,7 @@ print_plan_summary() {
         fi
         items=""
         for irec in "${ITEM_DB[@]}"; do
-            IFS='|' read -r iid icat ilabel idef <<< "$irec"
+            IFS='|' read -r iid icat ilabel idef ipkgs idesc <<< "$irec"
             if [[ "$icat" == "$c" ]] && item_selected "$iid"; then
                 if [[ -n "$items" ]]; then
                     items="${items} · ${ilabel}"
@@ -1368,11 +1451,129 @@ install_cursor() {
 }
 
 # -----------------------------------------------------------------------------
+# Atualizações — um scan do brew outdated; oferta antes de instalar
+# (sem --greedy: casks que se auto-atualizam, como Docker/VS Code, ficam de fora)
+# -----------------------------------------------------------------------------
+OUTDATED_RAW=""
+DO_UPGRADE=0
+PENDING_UPDATES=""
+
+scan_outdated() {
+    OUTDATED_RAW=""
+    [[ "$ITEMS_TOTAL" -gt 0 ]] || return 0
+    ensure_brew_in_path
+    local tmpf
+    tmpf="$(mktempfile)"
+    run_with_spinner "Verificando atualizações disponíveis" bash -c \
+        "brew outdated --verbose >$(printf '%q' "$tmpf") 2>/dev/null; brew outdated --cask --verbose >>$(printf '%q' "$tmpf") 2>/dev/null; true" || true
+    OUTDATED_RAW="$(cat "$tmpf" 2>/dev/null || true)"
+    return 0
+}
+
+# pkg_outdated_line <nome> — ecoa a linha "nome (atual) < nova" se desatualizado
+pkg_outdated_line() {
+    local name="$1" line first
+    [[ -n "$OUTDATED_RAW" ]] || return 1
+    while IFS= read -r line; do
+        first="${line%% *}"
+        if [[ "$first" == "$name" || "${first##*/}" == "$name" ]]; then
+            echo "$line"
+            return 0
+        fi
+    done <<< "$OUTDATED_RAW"
+    return 1
+}
+
+# item_outdated_summary <id> — linhas outdated dos pacotes do item (falha se nenhum)
+item_outdated_summary() {
+    local id="$1" pkgs entry name out=""
+    pkgs="$(item_pkgs "$id")" || return 1
+    for entry in $pkgs; do
+        name="${entry#*:}"
+        name="${name##*/}"
+        local line
+        if line="$(pkg_outdated_line "$name")"; then
+            if [[ -n "$out" ]]; then
+                out="${out} · ${line}"
+            else
+                out="$line"
+            fi
+        fi
+    done
+    [[ -n "$out" ]] || return 1
+    echo "$out"
+    return 0
+}
+
+# upgrade_item_pkgs <id> — brew upgrade nos pacotes desatualizados do item
+upgrade_item_pkgs() {
+    local id="$1" pkgs entry kind name
+    pkgs="$(item_pkgs "$id")" || return 1
+    for entry in $pkgs; do
+        kind="${entry%%:*}"
+        name="${entry#*:}"
+        pkg_outdated_line "${name##*/}" >/dev/null || continue
+        if [[ "$kind" == "c" ]]; then
+            run_quiet_step "Atualizando ${name}" brew upgrade --cask "$name" || return 1
+        else
+            run_quiet_step "Atualizando ${name}" brew upgrade "$name" || return 1
+        fi
+    done
+    return 0
+}
+
+offer_upgrades() {
+    DO_UPGRADE=0
+    PENDING_UPDATES=""
+    [[ -n "$OUTDATED_RAW" ]] || return 0
+    local id summary body=""
+    for id in $SELECTED_ITEMS; do
+        if summary="$(item_outdated_summary "$id")"; then
+            body="${body}↑ $(item_label "$id") — ${summary}"$'\n'
+            PENDING_UPDATES="$PENDING_UPDATES $id"
+        fi
+    done
+    [[ -n "$body" ]] || return 0
+    echo ""
+    if [[ -n "$GUM" ]]; then
+        "$GUM" style --border rounded --border-foreground "#f5b000" --padding "0 2" --width "$(($(term_cols) - 4))" \
+            "Atualizações disponíveis:"$'\n'"$body"
+    else
+        echo -e "${ACCENT}Atualizações disponíveis:${NC}"
+        echo "$body"
+    fi
+    if [[ "$UPGRADE_FLAG" == "1" ]]; then
+        DO_UPGRADE=1
+        ui_info "Itens acima serão atualizados (--upgrade)."
+        return 0
+    fi
+    if can_prompt; then
+        if gum_confirm_tty "Atualizar os itens acima durante a instalação?" --affirmative "Atualizar" --negative "Manter versões"; then
+            DO_UPGRADE=1
+        fi
+        return 0
+    fi
+    ui_warn "Rodando sem interação: versões mantidas. Use --upgrade para atualizar."
+    return 0
+}
+
+ui_up() {
+    local label="$1"
+    local secs="${2:-0}"
+    local suffix=" · atualizado"
+    if [[ "$secs" -gt 1 ]]; then
+        suffix="${suffix} em ${secs}s"
+    fi
+    echo -e "${ACCENT}↑${NC} ${label}${MUTED}${suffix}${NC}"
+}
+
+# -----------------------------------------------------------------------------
 # Execução por categoria com placar
 # -----------------------------------------------------------------------------
 RESULT_OK=""
 RESULT_SKIP=""
 RESULT_FAIL=""
+RESULT_UP=""
 
 run_item() {
     local id="$1"
@@ -1389,8 +1590,25 @@ run_item() {
             ui_done "$label" "$elapsed"
             ;;
         100)
-            RESULT_SKIP="$RESULT_SKIP $id"
-            ui_skip "$label"
+            local summary=""
+            if summary="$(item_outdated_summary "$id" 2>/dev/null)"; then
+                if [[ "$DO_UPGRADE" == "1" ]]; then
+                    local up_start=$SECONDS
+                    if upgrade_item_pkgs "$id"; then
+                        RESULT_UP="$RESULT_UP $id"
+                        ui_up "$label" $((SECONDS - up_start))
+                    else
+                        RESULT_FAIL="$RESULT_FAIL $id"
+                        ui_error "Falhou ao atualizar: ${label} (continuando)"
+                    fi
+                else
+                    RESULT_SKIP="$RESULT_SKIP $id"
+                    echo -e "${MUTED}◇ ${label} — instalado ${NC}${ACCENT}(atualização disponível)${NC}"
+                fi
+            else
+                RESULT_SKIP="$RESULT_SKIP $id"
+                ui_skip "$label"
+            fi
             ;;
         *)
             RESULT_FAIL="$RESULT_FAIL $id"
@@ -1401,9 +1619,9 @@ run_item() {
 }
 
 run_category() {
-    local cat="$1" rec id c label def
+    local cat="$1" rec id c label def pkgs desc
     for rec in "${ITEM_DB[@]}"; do
-        IFS='|' read -r id c label def <<< "$rec"
+        IFS='|' read -r id c label def pkgs desc <<< "$rec"
         [[ "$c" == "$cat" ]] || continue
         item_selected "$id" || continue
         run_item "$id" "$label"
@@ -1738,7 +1956,7 @@ EOF
 write_ghostty_config() {
     local dest="$HOME/.config/ghostty/config"
     if [[ -f "$dest" ]]; then
-        ui_skip "~/.config/ghostty/config — existente, preservado"
+        echo -e "${MUTED}◇ ~/.config/ghostty/config existente — preservado${NC}"
         return 0
     fi
     local font="JetBrainsMono Nerd Font"
@@ -1787,17 +2005,17 @@ print_final_report() {
     local total_secs="$1"
     echo ""
     if [[ "$COLOR_OK" == "1" ]]; then
-        rule_gradient "━"
+        rule_sweep "━"
     fi
 
-    local n_ok n_skip n_fail
+    local n_ok n_skip n_fail n_up
     n_ok="$(count_words "$RESULT_OK")"
     n_skip="$(count_words "$RESULT_SKIP")"
     n_fail="$(count_words "$RESULT_FAIL")"
+    n_up="$(count_words "$RESULT_UP")"
 
-    echo -ne "${BOLD}"
-    gradient_text "  ◆  instalação concluída em $(format_duration "$total_secs")  ◆"
-    echo -e "  ${SUCCESS}✓ ${n_ok} instalados${NC}  ${MUTED}◇ ${n_skip} já presentes${NC}  ${ERROR}$( [[ "$n_fail" -gt 0 ]] && echo "✗ ${n_fail} falharam" )${NC}"
+    shimmer_line "  ◆  instalação concluída em $(format_duration "$total_secs")  ◆"
+    echo -e "  ${SUCCESS}✓ ${n_ok} instalados${NC}  ${ACCENT}$( [[ "$n_up" -gt 0 ]] && echo "↑ ${n_up} atualizados" )${NC}  ${MUTED}◇ ${n_skip} já presentes${NC}  ${ERROR}$( [[ "$n_fail" -gt 0 ]] && echo "✗ ${n_fail} falharam" )${NC}"
     echo ""
 
     if [[ "$n_fail" -gt 0 ]]; then
@@ -1851,6 +2069,9 @@ print_final_report() {
     if ! category_selected terminal && [[ -n "$RESULT_OK" ]]; then
         add_step "Seu ~/.zshrc não foi alterado — adicione os inits (pyenv, JAVA_HOME) se precisar"
     fi
+    if [[ -n "$PENDING_UPDATES" && "$DO_UPGRADE" != "1" ]]; then
+        add_step "Atualizações não aplicadas: re-execute com --upgrade (ou brew upgrade)"
+    fi
 
     if [[ -n "$steps" ]]; then
         local card="Próximos passos:"$'\n'"$steps"
@@ -1899,6 +2120,8 @@ main() {
 
     ui_stage "Base"
     install_homebrew
+    scan_outdated
+    offer_upgrades
 
     local rec id label desc
     for rec in "${CATEGORY_DB[@]}"; do

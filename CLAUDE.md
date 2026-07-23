@@ -29,7 +29,9 @@ Flags: `--profile completo|terminal|dev|mobile`, `--categories a,b,c`, `--all`, 
 
 Flow in `main()`: gum bootstrap → banner → `resolve_selection` (flags headless, else gum selector via `/dev/tty`) → `compute_stages` → manifest + confirm → CLT gate (exits 0 asking re-run) → stage Base (Homebrew) → one stage per selected category (`run_category` → `run_item`) → stage Configurações (`.zshrc` + starship/p10k + ghostty config, only when the `terminal` category is selected) → `print_final_report`.
 
-**Data model** (Bash 3.2): `CATEGORY_DB` and `ITEM_DB` are indexed arrays of `|`-delimited records (`id|categoria|rótulo|padrão`). Item id maps to its function by convention: `install_${id//-/_}`. `ITEM_DB` record order = execution order within a category. Selection state lives in space-separated strings (`SELECTED_ITEMS`, `SELECTED_CATEGORIES`) with `item_selected`/`select_item` helpers; mutually exclusive choices in scalars `PROMPT_ACTIVE` (starship|p10k) and `TERMINAL_CHOICE`.
+**Data model** (Bash 3.2): `CATEGORY_DB` and `ITEM_DB` are indexed arrays of `|`-delimited records — `ITEM_DB` has 6 fields: `id|categoria|rótulo|padrão|pacotes|descrição`, where `pacotes` is space-separated `f:formula`/`c:cask` entries (used by the upgrade engine) and every reader must `IFS='|' read -r id cat label def pkgs desc`. Item id maps to its function by convention: `install_${id//-/_}`. `ITEM_DB` record order = execution order within a category. Selection state lives in space-separated strings (`SELECTED_ITEMS`, `SELECTED_CATEGORIES`) with `item_selected`/`select_item` helpers; mutually exclusive choices in scalars `PROMPT_ACTIVE` (starship|p10k) and `TERMINAL_CHOICE`.
+
+**Upgrade engine**: `scan_outdated` runs `brew outdated --verbose` (formulae + casks, never `--greedy`) once after the Base stage; `offer_upgrades` shows the card and asks (interactive) or requires `--upgrade` (headless). `run_item`'s skip path (rc 100) checks `item_outdated_summary` and either upgrades (`RESULT_UP`, `ui_up`) or annotates "atualização disponível".
 
 ## Conventions every change must respect
 

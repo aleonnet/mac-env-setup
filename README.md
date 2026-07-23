@@ -52,6 +52,7 @@ Veja tudo com `bash mac_env_install.sh --list`.
 | `--profile <p>` | `completo` \| `terminal` \| `dev` \| `mobile`, sem interação |
 | `--categories a,b,c` | categorias diretas, sem interação |
 | `--all` | tudo (= `--profile completo`) |
+| `--upgrade` | atualiza itens já instalados com versão nova no brew (sem a flag, o instalador pergunta quando interativo e mantém versões quando headless) |
 | `--yes`, `-y` | não pergunta nada; perfil padrão `terminal` |
 | `--dry-run` | mostra o plano e sai sem tocar no sistema |
 | `--list` | lista categorias/itens e sai |
@@ -68,6 +69,7 @@ Variáveis de ambiente: `MACENV_USE_GUM` (`auto`/`1`/`0`), `MACENV_GUM_VERSION` 
 ## Comportamentos importantes
 
 - **Idempotente**: cada item é verificado antes de instalar; re-execuções reportam "já instalado". Falha de um item não aborta os demais (resumo final com falhas e exit 1).
+- **Atualizações**: itens já instalados com versão nova no Homebrew são detectados e ofertados num card antes da instalação (interativo pergunta; `--upgrade` aplica direto).
 - **Xcode CLT**: se ausente, abre o instalador gráfico e **encerra** — re-execute o script depois.
 - **Fonte MesloLGS**: quando selecionada, sempre atualizada para v3.x; arquivos v2.3.3 legados são removidos.
 - Saída silenciosa por padrão (últimas 80 linhas do log em caso de falha); `--verbose` mostra tudo.
