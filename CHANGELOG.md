@@ -2,6 +2,11 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [3.6.3] - 2026-07-23
+
+### Changed
+- Config nova do Ghostty inclui fundo translúcido com blur estilo iTerm2 (`background-opacity = 0.85`, `background-blur-radius = 20`).
+
 ## [3.6.2] - 2026-07-23
 
 ### Fixed

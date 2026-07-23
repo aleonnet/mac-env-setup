@@ -412,7 +412,7 @@ print_installer_banner() {
         "               ░░▒▒▓▓██████████▓▓▒▒░░"
     echo ""
     shimmer_line "               ◆  M A C · E N V  ◆"
-    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.6.2${NC}"
+    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.6.3${NC}"
     echo ""
     if [[ -t 1 ]]; then
         tput cnorm 2>/dev/null || true
@@ -2072,6 +2072,10 @@ window-padding-x = 8
 window-padding-y = 8
 background = #0e0e16
 foreground = #e6e6f0
+
+# Fundo translúcido com blur (estilo iTerm2)
+background-opacity = 0.85
+background-blur-radius = 20
 EOF
     if [[ "$want_shader" == "1" ]]; then
         cat >> "$tmp" <<EOF
