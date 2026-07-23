@@ -2,6 +2,11 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [3.6.1] - 2026-07-23
+
+### Fixed
+- **Falso positivo de atualização em apps que se auto-atualizam** (Docker Desktop, VS Code, Cursor, Android Studio): o receipt do brew fica congelado na versão do install original enquanto o app se atualiza sozinho (ex.: receipt 4.29.0 vs app real 4.81.0), gerando ofertas de upgrade erradas e no-ops silenciosos. Novo marcador `c!:` no catálogo exclui esses casks do engine de upgrades — eles cuidam das próprias atualizações.
+
 ## [3.6.0] - 2026-07-23
 
 ### Added

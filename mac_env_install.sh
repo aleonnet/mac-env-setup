@@ -412,7 +412,7 @@ print_installer_banner() {
         "               ░░▒▒▓▓██████████▓▓▒▒░░"
     echo ""
     shimmer_line "               ◆  M A C · E N V  ◆"
-    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.6.0${NC}"
+    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.6.1${NC}"
     echo ""
     if [[ -t 1 ]]; then
         tput cnorm 2>/dev/null || true
@@ -613,7 +613,7 @@ ITEM_DB=(
     "gh|dev|GitHub CLI|1|f:gh|PRs, issues e auth do GitHub no terminal"
     "jq|dev|jq|1|f:jq|filtra e transforma JSON no shell"
     "wget|dev|wget|1|f:wget|downloads recursivos e em lote"
-    "docker|dev|Docker Desktop|1|c:docker-desktop|containers + Docker Compose"
+    "docker|dev|Docker Desktop|1|c!:docker-desktop|containers + Docker Compose"
     "node|dev|Node.js + pnpm + bun|1|f:node f:pnpm f:bun|runtime JS + gerenciadores de pacote rápidos"
     "pyenv|dev|pyenv + pyenv-virtualenv|1|f:pyenv f:pyenv-virtualenv|múltiplas versões de Python + virtualenvs"
     "claude-code|dev|Claude Code|1||CLI de IA da Anthropic (instalador nativo em ~/.local/bin)"
@@ -621,10 +621,10 @@ ITEM_DB=(
     "supabase|cloud|Supabase CLI|1|f:supabase|Supabase local + migrations + deploy"
     "openjdk21|android|OpenJDK 21 (LTS)|1|f:openjdk@21|JDK que o tooling Android/Gradle suporta (25/26 quebram builds)"
     "platform-tools|android|Android platform-tools (adb)|1|c:android-platform-tools|adb/fastboot para devices Android"
-    "android-studio|android|Android Studio|0|c:android-studio|IDE Android completa (pesada)"
+    "android-studio|android|Android Studio|0|c!:android-studio|IDE Android completa (pesada)"
     "cocoapods|ios|CocoaPods|1|f:cocoapods|dependências iOS — necessário para Flutter iOS"
-    "vscode|apps|Visual Studio Code|1|c:visual-studio-code|editor da Microsoft"
-    "cursor|apps|Cursor|1|c:cursor|editor com IA integrada"
+    "vscode|apps|Visual Studio Code|1|c!:visual-studio-code|editor da Microsoft"
+    "cursor|apps|Cursor|1|c!:cursor|editor com IA integrada"
 )
 
 SELECTED_CATEGORIES=""
@@ -1489,10 +1489,13 @@ pkg_outdated_line() {
 }
 
 # item_outdated_summary <id> — linhas outdated dos pacotes do item (falha se nenhum)
+# Entradas "c!:" (casks que se auto-atualizam: Docker, VS Code, Cursor...) são
+# ignoradas: o receipt do brew fica defasado do app real e geraria falso positivo.
 item_outdated_summary() {
     local id="$1" pkgs entry name out=""
     pkgs="$(item_pkgs "$id")" || return 1
     for entry in $pkgs; do
+        [[ "${entry%%:*}" == "c!" ]] && continue
         name="${entry#*:}"
         name="${name##*/}"
         local line
@@ -1515,6 +1518,7 @@ upgrade_item_pkgs() {
     pkgs="$(item_pkgs "$id")" || return 1
     for entry in $pkgs; do
         kind="${entry%%:*}"
+        [[ "$kind" == "c!" ]] && continue
         name="${entry#*:}"
         pkg_outdated_line "${name##*/}" >/dev/null || continue
         if [[ "$kind" == "c" ]]; then
