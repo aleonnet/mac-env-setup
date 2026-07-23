@@ -2,6 +2,11 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [3.6.2] - 2026-07-23
+
+### Fixed
+- **Busca no histórico por prefixo com ↑/↓ restaurada**: o Oh My Zsh amarrava as setas aos widgets nativos `up/down-line-or-beginning-search` e isso se perdeu na troca pelos zsh essentials (3.3.0). O bloco core do `.zshrc` agora faz os `bindkey` (modos normal e application).
+
 ## [3.6.1] - 2026-07-23
 
 ### Fixed
