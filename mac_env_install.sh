@@ -617,7 +617,7 @@ ITEM_DB=(
     "pyenv|dev|pyenv + pyenv-virtualenv|1|f:pyenv f:pyenv-virtualenv|múltiplas versões de Python + virtualenvs"
     "awscli|cloud|AWS CLI|1|f:awscli|gerencia serviços AWS pelo terminal"
     "supabase|cloud|Supabase CLI|1|f:supabase|Supabase local + migrations + deploy"
-    "openjdk21|android|OpenJDK 21|1|f:openjdk@21|Java 21 para builds Android/JVM"
+    "openjdk21|android|OpenJDK 21 (LTS)|1|f:openjdk@21|JDK que o tooling Android/Gradle suporta (25/26 quebram builds)"
     "platform-tools|android|Android platform-tools (adb)|1|c:android-platform-tools|adb/fastboot para devices Android"
     "android-studio|android|Android Studio|0|c:android-studio|IDE Android completa (pesada)"
     "cocoapods|ios|CocoaPods|1|f:cocoapods|dependências iOS — necessário para Flutter iOS"
