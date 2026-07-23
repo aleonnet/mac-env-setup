@@ -2,6 +2,12 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [3.6.0] - 2026-07-23
+
+### Added
+- **Claude Code** (categoria dev): instalador nativo da Anthropic (`claude.ai/install.sh` → `~/.local/bin/claude`, PATH já coberto pelo `.zshrc` gerado). Atualizações ficam com o auto-update do próprio Claude Code.
+- **Ghostty Blackhole** (categoria terminal): clona [s0xDk/ghostty-blackhole](https://github.com/s0xDk/ghostty-blackhole) em `~/Development/ghostty-blackhole` (`git pull` quando já existe) e ativa o `custom-shader` na config do Ghostty — escrito em configs novas, **anexado com backup** em configs existentes sem shader, intocado quando já há um. Pulado com aviso se Ghostty não estiver na seleção/máquina.
+
 ## [3.5.1] - 2026-07-22
 
 ### Fixed

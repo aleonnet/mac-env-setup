@@ -36,8 +36,8 @@ curl -fsSL https://raw.githubusercontent.com/aleonnet/mac-env-setup/main/mac_env
 
 ## Categorias e itens
 
-- **terminal** — Ghostty *(padrão)* ou iTerm2, zsh essentials (completions + histórico nativos, zsh-autosuggestions, zsh-syntax-highlighting — sem frameworks), prompt **Starship** *(padrão)* ou Powerlevel10k, JetBrainsMono Nerd Font *(padrão)* e/ou MesloLGS Nerd Font, eza, fzf, zoxide, bat
-- **dev** — git (Homebrew), GitHub CLI, jq, wget, Docker Desktop, Node.js + pnpm + bun, pyenv + pyenv-virtualenv
+- **terminal** — Ghostty *(padrão)* ou iTerm2, shader **Blackhole** no fundo do Ghostty ([s0xDk/ghostty-blackhole](https://github.com/s0xDk/ghostty-blackhole)), zsh essentials (completions + histórico nativos, zsh-autosuggestions, zsh-syntax-highlighting — sem frameworks), prompt **Starship** *(padrão)* ou Powerlevel10k, JetBrainsMono Nerd Font *(padrão)* e/ou MesloLGS Nerd Font, eza, fzf, zoxide, bat
+- **dev** — git (Homebrew), GitHub CLI, jq, wget, Docker Desktop, Node.js + pnpm + bun, pyenv + pyenv-virtualenv, **Claude Code** (instalador nativo da Anthropic)
 - **cloud** — AWS CLI, Supabase CLI
 - **android** — OpenJDK 21 LTS (deliberado: é o JDK que Android Studio/Gradle suportam — 25/26 quebram builds Flutter), android-platform-tools (adb); Android Studio opcional
 - **ios** — CocoaPods (necessário para builds Flutter iOS; o Xcode completo vem só da App Store)
@@ -66,7 +66,7 @@ Variáveis de ambiente: `MACENV_USE_GUM` (`auto`/`1`/`0`), `MACENV_GUM_VERSION` 
 
 - **`~/.zshrc`** — montado por blocos conforme a seleção (pyenv, JAVA_HOME, fzf, zoxide, eza, bat, plugins, prompt). Backup do anterior em `~/.zshrc.backup.<timestamp>` antes de **sobrescrever**.
 - **`~/.config/starship.toml`** — preset oficial do Starship: `tokyo-night` (padrão) ou `catppuccin-powerline`, escolhido no seletor (fallback Event Horizon embutido quando sem rede); backup antes de sobrescrever. Escolher Powerlevel10k mantém seu `~/.p10k.zsh` intacto e instala a MesloLGS (fonte recomendada do p10k).
-- **`~/.config/ghostty/config`** — fonte Nerd Font, cursor âmbar; **só é criado se não existir** (config existente é preservada).
+- **`~/.config/ghostty/config`** — fonte Nerd Font, cursor âmbar e shader blackhole (quando selecionado); config nova é criada completa, config existente é preservada — no máximo o bloco `custom-shader` é **anexado** (com backup) se ainda não houver um.
 - **VS Code / Cursor** — `terminal.integrated.fontFamily` recebe a Nerd Font no `settings.json` de cada editor instalado (valor existente é preservado; backup antes de escrever).
 
 ## Comportamentos importantes

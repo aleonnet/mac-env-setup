@@ -412,7 +412,7 @@ print_installer_banner() {
         "               ░░▒▒▓▓██████████▓▓▒▒░░"
     echo ""
     shimmer_line "               ◆  M A C · E N V  ◆"
-    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.5.1${NC}"
+    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.6.0${NC}"
     echo ""
     if [[ -t 1 ]]; then
         tput cnorm 2>/dev/null || true
@@ -586,8 +586,8 @@ run_quiet_step() {
 # A ordem dos registros em ITEM_DB é a ordem de execução dentro da categoria.
 # -----------------------------------------------------------------------------
 CATEGORY_DB=(
-    "terminal|Terminal & Shell|Ghostty, zsh essentials, prompt, fontes, eza/fzf/zoxide/bat"
-    "dev|Dev Essentials|git, gh, jq, wget, Docker, Node/pnpm/bun, pyenv"
+    "terminal|Terminal & Shell|Ghostty + shader blackhole, zsh essentials, prompt, fontes, eza/fzf/zoxide/bat"
+    "dev|Dev Essentials|git, gh, jq, wget, Docker, Node/pnpm/bun, pyenv, Claude Code"
     "cloud|Cloud & Infra|awscli, supabase"
     "android|Mobile Android|OpenJDK 21, platform-tools, Android Studio"
     "ios|Mobile iOS|CocoaPods (builds Flutter/iOS)"
@@ -601,6 +601,7 @@ ITEM_DB=(
     "iterm2|terminal|iTerm2|0|c:iterm2|terminal clássico do macOS"
     "font-jetbrains|terminal|JetBrainsMono Nerd Font|1|c:font-jetbrains-mono-nerd-font|fonte mono com ícones para prompt e eza"
     "font-meslo|terminal|MesloLGS Nerd Font|0|c:font-meslo-lg-nerd-font|fonte recomendada do Powerlevel10k"
+    "blackhole|terminal|Ghostty Blackhole (shader)|1||buraco negro GLSL no fundo do Ghostty (s0xDk/ghostty-blackhole)"
     "zsh-essentials|terminal|Essenciais do zsh|1|f:zsh-autosuggestions f:zsh-syntax-highlighting|completions, histórico e plugins (sugestões + highlight)"
     "starship|terminal|Prompt Starship|1|f:starship|prompt rápido com config declarativa (TOML)"
     "p10k|terminal|Prompt Powerlevel10k|0|f:powerlevel10k|prompt zsh clássico (em modo manutenção)"
@@ -615,6 +616,7 @@ ITEM_DB=(
     "docker|dev|Docker Desktop|1|c:docker-desktop|containers + Docker Compose"
     "node|dev|Node.js + pnpm + bun|1|f:node f:pnpm f:bun|runtime JS + gerenciadores de pacote rápidos"
     "pyenv|dev|pyenv + pyenv-virtualenv|1|f:pyenv f:pyenv-virtualenv|múltiplas versões de Python + virtualenvs"
+    "claude-code|dev|Claude Code|1||CLI de IA da Anthropic (instalador nativo em ~/.local/bin)"
     "awscli|cloud|AWS CLI|1|f:awscli|gerencia serviços AWS pelo terminal"
     "supabase|cloud|Supabase CLI|1|f:supabase|Supabase local + migrations + deploy"
     "openjdk21|android|OpenJDK 21 (LTS)|1|f:openjdk@21|JDK que o tooling Android/Gradle suporta (25/26 quebram builds)"
@@ -1169,6 +1171,35 @@ install_iterm2() {
         return 100
     fi
     run_quiet_step "Instalando iTerm2" brew install --cask iterm2 || return 1
+    return 0
+}
+
+# Shader blackhole para o fundo do Ghostty (upstream: s0xDk/ghostty-blackhole)
+BLACKHOLE_DIR="$HOME/Development/ghostty-blackhole"
+BLACKHOLE_REPO="https://github.com/s0xDk/ghostty-blackhole.git"
+
+install_blackhole() {
+    if ! item_selected ghostty && [[ ! -d "/Applications/Ghostty.app" ]]; then
+        ui_warn "Blackhole requer Ghostty — shader pulado."
+        return 100
+    fi
+    if ! command -v git &>/dev/null; then
+        return 1
+    fi
+    if [[ -d "$BLACKHOLE_DIR/.git" ]]; then
+        run_quiet_step "Atualizando ghostty-blackhole" git -C "$BLACKHOLE_DIR" pull --ff-only || true
+        return 100
+    fi
+    mkdir -p "$(dirname "$BLACKHOLE_DIR")"
+    run_quiet_step "Clonando ghostty-blackhole" git clone --depth 1 "$BLACKHOLE_REPO" "$BLACKHOLE_DIR" || return 1
+    return 0
+}
+
+install_claude_code() {
+    if command -v claude &>/dev/null || [[ -x "$HOME/.local/bin/claude" ]]; then
+        return 100
+    fi
+    run_quiet_step "Instalando Claude Code" bash -c "curl -fsSL https://claude.ai/install.sh | bash" || return 1
     return 0
 }
 
@@ -1990,10 +2021,29 @@ EOF
 
 write_ghostty_config() {
     local dest="$HOME/.config/ghostty/config"
+    local shader="$BLACKHOLE_DIR/blackhole.glsl"
+    local want_shader=0
+    if item_selected blackhole && [[ -f "$shader" ]]; then
+        want_shader=1
+    fi
+
     if [[ -f "$dest" ]]; then
-        echo -e "${MUTED}◇ ~/.config/ghostty/config existente — preservado${NC}"
+        # Config existente: nunca sobrescrever; só anexar o shader se faltar
+        if [[ "$want_shader" == "1" ]] && ! grep -q 'custom-shader' "$dest"; then
+            cp "$dest" "${dest}.backup.$(date +%Y%m%d%H%M%S)"
+            cat >> "$dest" <<EOF
+
+# Blackhole shader (s0xDk/ghostty-blackhole) — adicionado por mac_env_install.sh
+custom-shader = ${shader}
+custom-shader-animation = true
+EOF
+            ui_success "Shader blackhole anexado ao ~/.config/ghostty/config (backup criado)"
+        else
+            echo -e "${MUTED}◇ ~/.config/ghostty/config existente — preservado${NC}"
+        fi
         return 0
     fi
+
     local font="JetBrainsMono Nerd Font"
     if ! item_selected font-jetbrains && item_selected font-meslo; then
         font="MesloLGS Nerd Font"
@@ -2010,8 +2060,20 @@ window-padding-y = 8
 background = #0e0e16
 foreground = #e6e6f0
 EOF
+    if [[ "$want_shader" == "1" ]]; then
+        cat >> "$tmp" <<EOF
+
+# Blackhole shader (s0xDk/ghostty-blackhole)
+custom-shader = ${shader}
+custom-shader-animation = true
+EOF
+    fi
     backup_and_install_file "$tmp" "$dest"
-    ui_success "Ghostty configurado (fonte: ${font}, cursor âmbar)"
+    if [[ "$want_shader" == "1" ]]; then
+        ui_success "Ghostty configurado (fonte: ${font}, cursor âmbar, shader blackhole)"
+    else
+        ui_success "Ghostty configurado (fonte: ${font}, cursor âmbar)"
+    fi
     return 0
 }
 
@@ -2145,6 +2207,12 @@ print_final_report() {
     fi
     if result_ok supabase; then
         add_step "Supabase: rode 'supabase login'"
+    fi
+    if result_ok claude-code; then
+        add_step "Claude Code: rode 'claude' para autenticar na primeira vez"
+    fi
+    if result_ok blackhole; then
+        add_step "Shader blackhole ativo — reabra o Ghostty (ou Cmd+Shift+,) para ver"
     fi
     if result_ok android-studio; then
         add_step "Abra o Android Studio uma vez para instalar o SDK"
