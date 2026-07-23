@@ -2,6 +2,11 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [3.3.1] - 2026-07-22
+
+### Fixed
+- `starship.toml` agora entrega o **powerline Event Horizon** prometido: diretório em segmento âmbar com setas de transição, git em segmento escuro, lead-in `░▒▓` (assinatura do instalador) e `❯` em linha própria. Módulos AWS/GCloud/Azure desligados (o "on ☁️ (us-east-1)" não aparece mais). O config anterior caía no layout padrão do Starship.
+
 ## [3.3.0] - 2026-07-22
 
 ### Changed

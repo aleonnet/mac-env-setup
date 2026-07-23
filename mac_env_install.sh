@@ -412,7 +412,7 @@ print_installer_banner() {
         "               ░░▒▒▓▓██████████▓▓▒▒░░"
     echo ""
     shimmer_line "               ◆  M A C · E N V  ◆"
-    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.3.0${NC}"
+    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.3.1${NC}"
     echo ""
     if [[ -t 1 ]]; then
         tput cnorm 2>/dev/null || true
@@ -1851,39 +1851,69 @@ write_starship_config() {
     local tmp
     tmp="$(mktempfile)"
     cat > "$tmp" <<'EOF'
-# starship.toml — gerado por mac_env_install.sh (v3) · paleta Event Horizon
+# starship.toml — gerado por mac_env_install.sh (v3) · Event Horizon powerline
+# Requer Nerd Font no terminal (setas  e símbolos)
 "$schema" = 'https://starship.rs/config-schema.json'
 add_newline = true
 palette = "event_horizon"
+
+format = """
+[░▒▓](amber)\
+$directory\
+[](fg:amber bg:surface)\
+$git_branch\
+$git_status\
+[](fg:surface)\
+$nodejs\
+$python\
+$java\
+$cmd_duration
+$character"""
 
 [character]
 success_symbol = "[❯](bold amber)"
 error_symbol = "[❯](bold red)"
 
 [directory]
-style = "bold amber"
+style = "fg:crust bg:amber bold"
+format = "[ $path ]($style)"
 truncation_length = 4
 truncate_to_repo = true
 
 [git_branch]
-style = "info"
+symbol = ""
+style = "bg:surface"
+format = '[[ $symbol $branch ](fg:hot bg:surface)]($style)'
 
 [git_status]
-style = "ember"
+style = "bg:surface"
+format = '[[($all_status$ahead_behind )](fg:hot bg:surface)]($style)'
+
+[nodejs]
+symbol = ""
+format = '[ $symbol ($version)](fg:info)'
+
+[python]
+symbol = ""
+format = '[ $symbol ($version)(\($virtualenv\))](fg:info)'
+
+[java]
+symbol = ""
+format = '[ $symbol ($version)](fg:info)'
 
 [cmd_duration]
 min_time = 2000
-style = "muted"
-format = "[$duration]($style) "
+style = "fg:muted"
+format = "[  $duration]($style)"
 
-[nodejs]
-style = "info"
+[aws]
+disabled = true
 
-[python]
-style = "info"
+[gcloud]
+disabled = true
 
-[java]
-style = "info"
+[azure]
+disabled = true
 
 [docker_context]
 disabled = true
@@ -1896,6 +1926,8 @@ info = "#8892b0"
 muted = "#5a6480"
 cyan = "#00e5cc"
 red = "#e63946"
+crust = "#120b02"
+surface = "#2b1f0a"
 EOF
     backup_and_install_file "$tmp" "$HOME/.config/starship.toml"
     ui_success "starship.toml escrito em ~/.config/starship.toml"
