@@ -401,7 +401,8 @@ BANNER_ART=(
     "               ░░▒▒▓▓██████████▓▓▒▒░░"
 )
 
-# O buraco negro gira: a luz da rampa percorre o anel (fase por linha)
+# O buraco negro gira: a luz da rampa percorre o anel já desenhado na tela
+# (pressupõe a arte pintada imediatamente acima do cursor)
 blackhole_spin() {
     local frames="${1:-10}"
     if [[ "$ANIM_OK" != "1" || ! -t 1 ]]; then
@@ -409,9 +410,6 @@ blackhole_spin() {
     fi
     tput civis 2>/dev/null || true
     local f row r
-    for row in "${BANNER_ART[@]}"; do
-        gradient_text "$row"
-    done
     for ((f = 1; f <= frames; f++)); do
         sleep 0.06
         tput cuu ${#BANNER_ART[@]} 2>/dev/null || break
@@ -439,9 +437,10 @@ print_installer_banner() {
         tput civis 2>/dev/null || true
     fi
     reveal_lines "${BANNER_ART[@]}"
+    blackhole_spin 10
     echo ""
     shimmer_line "               ◆  M A C · E N V  ◆"
-    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.7.0${NC}"
+    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.7.1${NC}"
     echo ""
     if [[ -t 1 ]]; then
         tput cnorm 2>/dev/null || true
@@ -2276,7 +2275,6 @@ print_final_report() {
         printf -v line '%*s' "$((w - 3))" ''
         reveal_sweep "╰──${line// /─}"
         echo ""
-        blackhole_spin 10
     else
         echo ""
     fi

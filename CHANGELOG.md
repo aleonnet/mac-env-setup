@@ -2,6 +2,11 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [3.7.1] - 2026-07-23
+
+### Changed
+- A rotação do blackhole abre o instalador (logo após a revelação do anel no banner) e sai do finale, que mantém só o fechamento da calha + resumo.
+
 ## [3.7.0] - 2026-07-23
 
 ### Changed — UI levada ao limite do bash single-file
