@@ -412,7 +412,7 @@ print_installer_banner() {
         "               ░░▒▒▓▓██████████▓▓▒▒░░"
     echo ""
     shimmer_line "               ◆  M A C · E N V  ◆"
-    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.2.0${NC}"
+    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.3.0${NC}"
     echo ""
     if [[ -t 1 ]]; then
         tput cnorm 2>/dev/null || true
@@ -586,7 +586,7 @@ run_quiet_step() {
 # A ordem dos registros em ITEM_DB é a ordem de execução dentro da categoria.
 # -----------------------------------------------------------------------------
 CATEGORY_DB=(
-    "terminal|Terminal & Shell|Ghostty, Oh My Zsh, prompt, fontes, eza/fzf/zoxide/bat"
+    "terminal|Terminal & Shell|Ghostty, zsh essentials, prompt, fontes, eza/fzf/zoxide/bat"
     "dev|Dev Essentials|git, gh, jq, wget, Docker, Node/pnpm/bun, pyenv"
     "cloud|Cloud & Infra|awscli, supabase"
     "android|Mobile Android|OpenJDK 21, platform-tools, Android Studio"
@@ -600,7 +600,7 @@ ITEM_DB=(
     "iterm2|terminal|iTerm2|0|c:iterm2|terminal clássico do macOS"
     "font-jetbrains|terminal|JetBrainsMono Nerd Font|1|c:font-jetbrains-mono-nerd-font|fonte mono com ícones para prompt e eza"
     "font-meslo|terminal|MesloLGS Nerd Font|0|c:font-meslo-lg-nerd-font|fonte recomendada do Powerlevel10k"
-    "ohmyzsh|terminal|Oh My Zsh + plugins zsh|1|f:zsh-autosuggestions f:zsh-syntax-highlighting|framework zsh + sugestões e highlight de comandos"
+    "zsh-essentials|terminal|Essenciais do zsh|1|f:zsh-autosuggestions f:zsh-syntax-highlighting|completions, histórico e plugins (sugestões + highlight)"
     "starship|terminal|Prompt Starship|1|f:starship|prompt rápido com config declarativa (TOML)"
     "p10k|terminal|Prompt Powerlevel10k|0|f:powerlevel10k|prompt zsh clássico (em modo manutenção)"
     "eza|terminal|eza (ls com ícones)|1|f:eza|ls moderno: ícones, árvore, git status"
@@ -1186,23 +1186,17 @@ install_font_meslo() {
     return 0
 }
 
-install_ohmyzsh() {
-    local did=0
-    if [[ ! -d "$HOME/.oh-my-zsh" ]]; then
-        run_quiet_step "Instalando Oh My Zsh" env RUNZSH=no CHSH=no KEEP_ZSHRC=yes sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" || return 1
-        did=1
-    fi
+# zsh essentials: completions/histórico são nativos do zsh (só config no .zshrc);
+# aqui instalamos apenas os dois plugins via brew.
+install_zsh_essentials() {
     ensure_brew_in_path
     local to_install=()
     brew list zsh-autosuggestions &>/dev/null || to_install+=(zsh-autosuggestions)
     brew list zsh-syntax-highlighting &>/dev/null || to_install+=(zsh-syntax-highlighting)
-    if [[ ${#to_install[@]} -gt 0 ]]; then
-        run_quiet_step "Instalando plugins zsh" brew install "${to_install[@]}" || return 1
-        did=1
-    fi
-    if [[ $did -eq 0 ]]; then
+    if [[ ${#to_install[@]} -eq 0 ]]; then
         return 100
     fi
+    run_quiet_step "Instalando plugins zsh" brew install "${to_install[@]}" || return 1
     return 0
 }
 
@@ -1626,20 +1620,19 @@ fi
 EOF
 }
 
-zshrc_block_omz() {
+zshrc_block_zsh_core() {
     cat <<'EOF'
 
-# Oh My Zsh
-export ZSH="$HOME/.oh-my-zsh"
-EOF
-    if [[ -n "$PROMPT_ACTIVE" ]]; then
-        echo 'ZSH_THEME=""'
-    else
-        echo 'ZSH_THEME="robbyrussell"'
-    fi
-    cat <<'EOF'
-plugins=(git)
-source $ZSH/oh-my-zsh.sh
+# Completions + histórico (nativos do zsh — sem frameworks)
+autoload -Uz compinit && compinit
+zstyle ':completion:*' menu select
+zstyle ':completion:*' matcher-list 'm:{a-z}={A-Za-z}'
+bindkey -e
+HISTFILE="$HOME/.zsh_history"
+HISTSIZE=50000
+SAVEHIST=50000
+setopt SHARE_HISTORY INC_APPEND_HISTORY HIST_IGNORE_ALL_DUPS HIST_REDUCE_BLANKS
+setopt AUTO_CD INTERACTIVE_COMMENTS
 EOF
 }
 
@@ -1810,8 +1803,8 @@ write_zshrc() {
     if [[ "$PROMPT_ACTIVE" == "p10k" ]]; then
         zshrc_block_p10k_instant >> "$tmp"
     fi
-    if item_selected ohmyzsh; then
-        zshrc_block_omz >> "$tmp"
+    if item_selected zsh-essentials; then
+        zshrc_block_zsh_core >> "$tmp"
     fi
     zshrc_block_path >> "$tmp"
     if item_selected pyenv; then
@@ -1825,7 +1818,7 @@ write_zshrc() {
     fi
     zshrc_block_bun >> "$tmp"   # auto-guardado: só ativa se ~/.bun existir
     zshrc_block_api_keys >> "$tmp"
-    if item_selected ohmyzsh; then
+    if item_selected zsh-essentials; then
         zshrc_block_autosuggestions >> "$tmp"
     fi
     if item_selected fzf; then
@@ -1840,7 +1833,7 @@ write_zshrc() {
     if item_selected bat; then
         zshrc_block_bat >> "$tmp"
     fi
-    if item_selected ohmyzsh; then
+    if item_selected zsh-essentials; then
         zshrc_block_syntax_highlighting >> "$tmp"
     fi
     case "$PROMPT_ACTIVE" in

@@ -36,7 +36,7 @@ curl -fsSL https://raw.githubusercontent.com/aleonnet/mac-env-setup/main/mac_env
 
 ## Categorias e itens
 
-- **terminal** — Ghostty *(padrão)* ou iTerm2, Oh My Zsh + zsh-autosuggestions + zsh-syntax-highlighting, prompt **Starship** *(padrão)* ou Powerlevel10k, JetBrainsMono Nerd Font *(padrão)* e/ou MesloLGS Nerd Font, eza, fzf, zoxide, bat
+- **terminal** — Ghostty *(padrão)* ou iTerm2, zsh essentials (completions + histórico nativos, zsh-autosuggestions, zsh-syntax-highlighting — sem frameworks), prompt **Starship** *(padrão)* ou Powerlevel10k, JetBrainsMono Nerd Font *(padrão)* e/ou MesloLGS Nerd Font, eza, fzf, zoxide, bat
 - **dev** — git (Homebrew), GitHub CLI, jq, wget, Docker Desktop, Node.js + pnpm + bun, pyenv + pyenv-virtualenv
 - **cloud** — AWS CLI, Supabase CLI
 - **android** — OpenJDK 21, android-platform-tools (adb); Android Studio opcional

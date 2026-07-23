@@ -2,6 +2,11 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [3.3.0] - 2026-07-22
+
+### Changed
+- **Oh My Zsh substituído por "zsh essentials"**: completions e histórico agora vêm de configuração nativa do zsh no `.zshrc` gerado (`compinit`, `setopt` de histórico, menu de completion); os plugins zsh-autosuggestions e zsh-syntax-highlighting continuam via Homebrew. O instalador não baixa mais o framework Oh My Zsh — shell mais leve e sem dependência de repositório externo. Powerlevel10k continua funcionando standalone quando escolhido.
+
 ## [3.2.0] - 2026-07-22
 
 ### Removed
