@@ -2,6 +2,11 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [3.0.1] - 2026-07-22
+
+### Fixed
+- `.zshrc` gerado agora preserva o **bun instalado via curl** (`~/.bun`): bloco auto-guardado com `BUN_INSTALL`, PATH e completions. Antes, regenerar o `.zshrc` derrubava o bun do PATH nessas instalações.
+
 ## [3.0.0] - 2026-07-22
 
 Instalador por categorias com seletor interativo e direção de arte "Event Horizon".

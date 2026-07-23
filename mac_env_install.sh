@@ -357,7 +357,7 @@ print_installer_banner() {
     echo ""
     echo -ne "${BOLD}"
     gradient_text "               ◆  M A C · E N V  ◆"
-    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.0.0${NC}"
+    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.0.1${NC}"
     echo ""
     if [[ -t 1 ]]; then
         tput cnorm 2>/dev/null || true
@@ -1515,6 +1515,18 @@ export PATH="$PATH:$HOME/Library/Android/sdk/platform-tools"
 EOF
 }
 
+zshrc_block_bun() {
+    cat <<'EOF'
+
+# bun (quando instalado via curl em ~/.bun; via Homebrew já entra no PATH)
+if [[ -d "$HOME/.bun" ]]; then
+  export BUN_INSTALL="$HOME/.bun"
+  export PATH="$BUN_INSTALL/bin:$PATH"
+  [ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
+fi
+EOF
+}
+
 zshrc_block_api_keys() {
     cat <<'EOF'
 
@@ -1637,6 +1649,7 @@ write_zshrc() {
     if item_selected platform-tools; then
         zshrc_block_android_sdk >> "$tmp"
     fi
+    zshrc_block_bun >> "$tmp"   # auto-guardado: só ativa se ~/.bun existir
     zshrc_block_api_keys >> "$tmp"
     if item_selected ohmyzsh; then
         zshrc_block_autosuggestions >> "$tmp"
