@@ -2,6 +2,11 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [3.3.2] - 2026-07-22
+
+### Changed
+- Prompt Starship agora usa o **preset oficial `catppuccin-powerline`** (o mesmo do guia Ghostty/Starship/Catppuccin), gerado via `starship preset` na instalação. O config Event Horizon embutido vira fallback para instalação sem rede.
+
 ## [3.3.1] - 2026-07-22
 
 ### Fixed

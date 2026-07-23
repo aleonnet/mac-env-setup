@@ -412,7 +412,7 @@ print_installer_banner() {
         "               ░░▒▒▓▓██████████▓▓▒▒░░"
     echo ""
     shimmer_line "               ◆  M A C · E N V  ◆"
-    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.3.1${NC}"
+    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.3.2${NC}"
     echo ""
     if [[ -t 1 ]]; then
         tput cnorm 2>/dev/null || true
@@ -1848,10 +1848,17 @@ write_zshrc() {
 }
 
 write_starship_config() {
+    ensure_brew_in_path
     local tmp
     tmp="$(mktempfile)"
+    # Preset oficial (mesmo do guia Ghostty/Starship/Catppuccin); fallback embutido offline
+    if command -v starship &>/dev/null && starship preset catppuccin-powerline > "$tmp" 2>/dev/null && [[ -s "$tmp" ]]; then
+        backup_and_install_file "$tmp" "$HOME/.config/starship.toml"
+        ui_success "starship.toml escrito (preset catppuccin-powerline)"
+        return 0
+    fi
     cat > "$tmp" <<'EOF'
-# starship.toml — gerado por mac_env_install.sh (v3) · Event Horizon powerline
+# starship.toml — gerado por mac_env_install.sh (v3) · Event Horizon powerline (fallback)
 # Requer Nerd Font no terminal (setas  e símbolos)
 "$schema" = 'https://starship.rs/config-schema.json'
 add_newline = true
@@ -1930,7 +1937,7 @@ crust = "#120b02"
 surface = "#2b1f0a"
 EOF
     backup_and_install_file "$tmp" "$HOME/.config/starship.toml"
-    ui_success "starship.toml escrito em ~/.config/starship.toml"
+    ui_success "starship.toml escrito (fallback Event Horizon — sem rede para o preset)"
     return 0
 }
 
