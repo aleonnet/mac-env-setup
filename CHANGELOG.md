@@ -2,6 +2,11 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [3.4.0] - 2026-07-22
+
+### Added
+- Seletor de **estilo do prompt Starship**: Tokyo Night (novo padrão) ou Catppuccin Powerline, via `starship preset`.
+
 ## [3.3.2] - 2026-07-22
 
 ### Changed

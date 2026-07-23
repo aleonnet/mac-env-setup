@@ -64,7 +64,7 @@ Variáveis de ambiente: `MACENV_USE_GUM` (`auto`/`1`/`0`), `MACENV_GUM_VERSION` 
 ## Configurações geradas (só quando a categoria `terminal` é selecionada)
 
 - **`~/.zshrc`** — montado por blocos conforme a seleção (pyenv, JAVA_HOME, fzf, zoxide, eza, bat, plugins, prompt). Backup do anterior em `~/.zshrc.backup.<timestamp>` antes de **sobrescrever**.
-- **`~/.config/starship.toml`** — preset oficial `catppuccin-powerline` (fallback Event Horizon embutido quando sem rede); backup antes de sobrescrever. Escolher Powerlevel10k mantém seu `~/.p10k.zsh` intacto e instala a MesloLGS (fonte recomendada do p10k).
+- **`~/.config/starship.toml`** — preset oficial do Starship: `tokyo-night` (padrão) ou `catppuccin-powerline`, escolhido no seletor (fallback Event Horizon embutido quando sem rede); backup antes de sobrescrever. Escolher Powerlevel10k mantém seu `~/.p10k.zsh` intacto e instala a MesloLGS (fonte recomendada do p10k).
 - **`~/.config/ghostty/config`** — fonte Nerd Font, cursor âmbar; **só é criado se não existir** (config existente é preservada).
 
 ## Comportamentos importantes

@@ -412,7 +412,7 @@ print_installer_banner() {
         "               ░░▒▒▓▓██████████▓▓▒▒░░"
     echo ""
     shimmer_line "               ◆  M A C · E N V  ◆"
-    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.3.2${NC}"
+    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.4.0${NC}"
     echo ""
     if [[ -t 1 ]]; then
         tput cnorm 2>/dev/null || true
@@ -626,6 +626,7 @@ ITEM_DB=(
 SELECTED_CATEGORIES=""
 SELECTED_ITEMS=""
 PROMPT_ACTIVE=""        # starship | p10k | vazio
+STARSHIP_PRESET="tokyo-night"   # tokyo-night | catppuccin-powerline
 TERMINAL_CHOICE=""      # ghostty | iterm2 | ambos | vazio
 PROFILE_LABEL=""
 
@@ -942,6 +943,14 @@ select_prompt_choice() {
             PROMPT_ACTIVE="starship"
             select_item starship
             deselect_item p10k
+            local preset
+            preset="$(gum_choose_tty --header "Estilo do prompt Starship" \
+                "Tokyo Night — cápsulas arredondadas, azul/cinza (recomendado)" \
+                "Catppuccin Powerline — segmentos pastel")" || selection_cancelled
+            case "$preset" in
+                Tokyo*)      STARSHIP_PRESET="tokyo-night" ;;
+                Catppuccin*) STARSHIP_PRESET="catppuccin-powerline" ;;
+            esac
             ;;
         Powerlevel10k*)
             PROMPT_ACTIVE="p10k"
@@ -1851,10 +1860,10 @@ write_starship_config() {
     ensure_brew_in_path
     local tmp
     tmp="$(mktempfile)"
-    # Preset oficial (mesmo do guia Ghostty/Starship/Catppuccin); fallback embutido offline
-    if command -v starship &>/dev/null && starship preset catppuccin-powerline > "$tmp" 2>/dev/null && [[ -s "$tmp" ]]; then
+    # Preset oficial do Starship (tokyo-night padrão); fallback embutido offline
+    if command -v starship &>/dev/null && starship preset "$STARSHIP_PRESET" > "$tmp" 2>/dev/null && [[ -s "$tmp" ]]; then
         backup_and_install_file "$tmp" "$HOME/.config/starship.toml"
-        ui_success "starship.toml escrito (preset catppuccin-powerline)"
+        ui_success "starship.toml escrito (preset ${STARSHIP_PRESET})"
         return 0
     fi
     cat > "$tmp" <<'EOF'
