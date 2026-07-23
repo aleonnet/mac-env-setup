@@ -391,6 +391,42 @@ reveal_lines() {
     done
 }
 
+BANNER_ART=(
+    "               ░░▒▒▓▓██████████▓▓▒▒░░"
+    "           ░▒▓████████████████████████▓▒░"
+    "         ▒████▓▒░░                ░░▒▓████▒"
+    "        ▓███▒                          ▒███▓"
+    "         ▒████▓▒░░                ░░▒▓████▒"
+    "           ░▒▓████████████████████████▓▒░"
+    "               ░░▒▒▓▓██████████▓▓▒▒░░"
+)
+
+# O buraco negro gira: a luz da rampa percorre o anel (fase por linha)
+blackhole_spin() {
+    local frames="${1:-10}"
+    if [[ "$ANIM_OK" != "1" || ! -t 1 ]]; then
+        return 0
+    fi
+    tput civis 2>/dev/null || true
+    local f row r
+    for row in "${BANNER_ART[@]}"; do
+        gradient_text "$row"
+    done
+    for ((f = 1; f <= frames; f++)); do
+        sleep 0.06
+        tput cuu ${#BANNER_ART[@]} 2>/dev/null || break
+        r=0
+        for row in "${BANNER_ART[@]}"; do
+            printf '\r'
+            tput el 2>/dev/null || true
+            gradient_text "$row" $(((f * 260 + r * 140) % 2000))
+            r=$((r + 1))
+        done
+    done
+    tput cnorm 2>/dev/null || true
+    return 0
+}
+
 print_installer_banner() {
     echo ""
     if [[ "$COLOR_OK" != "1" ]]; then
@@ -402,17 +438,10 @@ print_installer_banner() {
     if [[ -t 1 ]]; then
         tput civis 2>/dev/null || true
     fi
-    reveal_lines \
-        "               ░░▒▒▓▓██████████▓▓▒▒░░" \
-        "           ░▒▓████████████████████████▓▒░" \
-        "         ▒████▓▒░░                ░░▒▓████▒" \
-        "        ▓███▒                          ▒███▓" \
-        "         ▒████▓▒░░                ░░▒▓████▒" \
-        "           ░▒▓████████████████████████▓▒░" \
-        "               ░░▒▒▓▓██████████▓▓▒▒░░"
+    reveal_lines "${BANNER_ART[@]}"
     echo ""
     shimmer_line "               ◆  M A C · E N V  ◆"
-    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.6.3${NC}"
+    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.7.0${NC}"
     echo ""
     if [[ -t 1 ]]; then
         tput cnorm 2>/dev/null || true
@@ -420,59 +449,56 @@ print_installer_banner() {
 }
 
 # -----------------------------------------------------------------------------
-# UI (com fallback quando gum não está disponível)
+# UI — calha vertical conectada (│ ◇ ◆) estilo clack; ANSI puro com gutter.
+# gum fica só para choose/confirm/style (cards); mensagens nunca passam por ele.
 # -----------------------------------------------------------------------------
+GUT="${MUTED}│${NC} "
+
 ui_info() {
-    local msg="$*"
-    if [[ -n "$GUM" ]]; then
-        "$GUM" log --level info -- "$msg"
-    else
-        echo -e "${MUTED}·${NC} ${msg}"
-    fi
+    bar_clear
+    echo -e "${GUT}${MUTED}·${NC} $*"
 }
 
 ui_warn() {
-    local msg="$*"
-    if [[ -n "$GUM" ]]; then
-        "$GUM" log --level warn -- "$msg"
-    else
-        echo -e "${WARN}!${NC} ${msg}"
-    fi
+    bar_clear
+    echo -e "${GUT}${WARN}!${NC} $*"
 }
 
 ui_success() {
-    local msg="$*"
-    if [[ -n "$GUM" ]]; then
-        local mark
-        mark="$("$GUM" style --foreground "#00e5cc" --bold "✓")"
-        echo "${mark} ${msg}"
-    else
-        echo -e "${SUCCESS}✓${NC} ${msg}"
-    fi
+    bar_clear
+    echo -e "${GUT}${SUCCESS}✓${NC} $*"
 }
 
 ui_error() {
-    local msg="$*"
-    if [[ -n "$GUM" ]]; then
-        "$GUM" log --level error -- "$msg"
-    else
-        echo -e "${ERROR}✗${NC} ${msg}"
-    fi
+    bar_clear
+    echo -e "${GUT}${ERROR}✗${NC} $*"
 }
 
 # item concluído com cronômetro / item pulado
 ui_done() {
+    bar_clear
     local label="$1"
     local secs="${2:-0}"
     local suffix=""
     if [[ "$secs" -gt 1 ]]; then
         suffix=" · ${secs}s"
     fi
-    echo -e "${SUCCESS}✓${NC} ${label}${MUTED}${suffix}${NC}"
+    echo -e "${GUT}${SUCCESS}✓${NC} ${label}${MUTED}${suffix}${NC}"
 }
 
 ui_skip() {
-    echo -e "${MUTED}◇ ${1} — já instalado${NC}"
+    bar_clear
+    echo -e "${GUT}${MUTED}◇ ${1} — já instalado${NC}"
+}
+
+# Fluxo de seleção estilo clack: pergunta fica visível e vira resposta
+flow_node() {
+    echo -e "${GUT}"
+    echo -e "${GUT}${ACCENT}◇${NC} ${BOLD}$1${NC}"
+}
+
+flow_done() {
+    echo -e "${GUT}${SUCCESS}◆${NC} $1"
 }
 
 INSTALL_STAGE_TOTAL=0
@@ -490,10 +516,14 @@ ui_section() {
     fi
 }
 
-progress_orbit_line() {
-    if [[ "$ITEMS_TOTAL" -le 0 || "$COLOR_OK" != "1" ]]; then
-        return 0
-    fi
+# Barra orbit "viva": fica pinada como última linha e é redesenhada a cada item.
+BAR_VISIBLE=0
+
+bar_live_capable() {
+    [[ "$COLOR_OK" == "1" && -t 1 && "$ITEMS_TOTAL" -gt 0 && "${VERBOSE:-0}" != "1" ]]
+}
+
+progress_orbit_render() {
     local width=24
     local filled=$((ITEMS_DONE * width / ITEMS_TOTAL))
     local i esc out=""
@@ -506,15 +536,33 @@ progress_orbit_line() {
             out+=$'\033[38;2;90;100;128m▱'
         fi
     done
-    printf '%s\033[0m %s\n' "$out" "${ITEMS_DONE}/${ITEMS_TOTAL} itens"
+    printf '\033[38;2;90;100;128m│\033[0m %s\033[0m \033[38;2;90;100;128m%s/%s itens\033[0m' \
+        "$out" "$ITEMS_DONE" "$ITEMS_TOTAL"
+}
+
+bar_show() {
+    bar_live_capable || return 0
+    progress_orbit_render
+    BAR_VISIBLE=1
+    return 0
+}
+
+bar_clear() {
+    if [[ "$BAR_VISIBLE" == "1" ]]; then
+        printf '\r'
+        tput el 2>/dev/null || true
+        BAR_VISIBLE=0
+    fi
+    return 0
 }
 
 ui_stage() {
     local title="$1"
     INSTALL_STAGE_CURRENT=$((INSTALL_STAGE_CURRENT + 1))
-    echo ""
+    bar_clear
     if [[ "$COLOR_OK" == "1" ]]; then
-        local head="━━ [${INSTALL_STAGE_CURRENT}/${INSTALL_STAGE_TOTAL}] ${title} "
+        echo -e "${GUT}"
+        local head="├── [${INSTALL_STAGE_CURRENT}/${INSTALL_STAGE_TOTAL}] ${title} "
         local w fill pad
         w="$(term_cols)"
         fill=$((w - ${#head}))
@@ -522,10 +570,11 @@ ui_stage() {
             fill=4
         fi
         printf -v pad '%*s' "$fill" ''
-        pad=${pad// /━}
+        pad=${pad// /─}
         reveal_sweep "${head}${pad}"
-        progress_orbit_line
+        bar_show
     else
+        echo ""
         echo "== [${INSTALL_STAGE_CURRENT}/${INSTALL_STAGE_TOTAL}] ${title} =="
     fi
 }
@@ -539,12 +588,34 @@ run_with_spinner() {
     local title="$1"
     shift
 
-    if [[ -n "$GUM" ]] && gum_is_tty && ! is_shell_function "${1:-}"; then
+    # MACENV_INNER=1: rodando sob o spinner de item do run_item — sem gum spin aninhado
+    if [[ -n "$GUM" && -z "${MACENV_INNER:-}" ]] && gum_is_tty && ! is_shell_function "${1:-}"; then
         "$GUM" spin --spinner dot --title "$title" -- "$@"
         return $?
     fi
 
     "$@"
+}
+
+# spin_while <pid> <label> — anima braille âmbar na linha até o pid terminar;
+# a linha é apagada ao final (o chamador imprime o resultado no lugar).
+SPIN_FRAMES='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+spin_while() {
+    local pid="$1"
+    local label="$2"
+    local i=0 ch rc=0
+    tput civis 2>/dev/null || true
+    while kill -0 "$pid" 2>/dev/null; do
+        ch="${SPIN_FRAMES:$((i % 10)):1}"
+        printf '\r\033[38;2;90;100;128m│\033[0m \033[38;2;245;176;0m%s\033[0m %s' "$ch" "$label"
+        i=$((i + 1))
+        sleep 0.08
+    done
+    wait "$pid" 2>/dev/null || rc=$?
+    printf '\r'
+    tput el 2>/dev/null || true
+    tput cnorm 2>/dev/null || true
+    return $rc
 }
 
 run_quiet_step() {
@@ -872,6 +943,7 @@ selection_cancelled() {
 }
 
 select_profile() {
+    flow_node "Perfil de instalação"
     local sel
     sel="$(gum_choose_tty --header "Escolha um perfil de instalação" \
         "Completo — tudo: terminal, dev, cloud, android, ios, apps" \
@@ -890,6 +962,7 @@ select_profile() {
             ;;
         *) selection_cancelled ;;
     esac
+    flow_done "Perfil: ${PROFILE_LABEL}"
     return 0
 }
 
@@ -919,6 +992,7 @@ refine_categories() {
 
 select_terminal_choice() {
     category_selected terminal || return 0
+    flow_node "Terminal"
     local sel
     sel="$(gum_choose_tty --header "Qual terminal instalar?" \
         "Ghostty — GPU/Metal, recomendado" \
@@ -929,11 +1003,13 @@ select_terminal_choice() {
         iTerm2*)  TERMINAL_CHOICE="iterm2";  select_item iterm2;  deselect_item ghostty ;;
         Ambos*)   TERMINAL_CHOICE="ambos";   select_item ghostty; select_item iterm2 ;;
     esac
+    flow_done "Terminal: ${TERMINAL_CHOICE}"
     return 0
 }
 
 select_prompt_choice() {
     category_selected terminal || return 0
+    flow_node "Prompt do shell"
     local header="Qual prompt ativar no zsh?"
     if [[ -f "$HOME/.p10k.zsh" ]]; then
         header="Qual prompt ativar? (~/.p10k.zsh detectado — sua config será mantida)"
@@ -963,6 +1039,11 @@ select_prompt_choice() {
             select_item font-meslo   # fonte recomendada oficialmente pelo p10k
             ;;
     esac
+    if [[ "$PROMPT_ACTIVE" == "starship" ]]; then
+        flow_done "Prompt: Starship · preset ${STARSHIP_PRESET}"
+    else
+        flow_done "Prompt: Powerlevel10k"
+    fi
     return 0
 }
 
@@ -1566,13 +1647,14 @@ offer_upgrades() {
 }
 
 ui_up() {
+    bar_clear
     local label="$1"
     local secs="${2:-0}"
     local suffix=" · atualizado"
     if [[ "$secs" -gt 1 ]]; then
         suffix="${suffix} em ${secs}s"
     fi
-    echo -e "${ACCENT}↑${NC} ${label}${MUTED}${suffix}${NC}"
+    echo -e "${GUT}${ACCENT}↑${NC} ${label}${MUTED}${suffix}${NC}"
 }
 
 # -----------------------------------------------------------------------------
@@ -1589,7 +1671,17 @@ run_item() {
     local fn="install_${id//-/_}"
     local start=$SECONDS
     local rc=0
-    "$fn" || rc=$?
+    local fn_out=""
+    if bar_live_capable; then
+        # spinner de item que se transforma no resultado (a fn roda em subshell;
+        # set +e preserva o contrato de retorno 0/100/1 sem errexit interno)
+        bar_clear
+        fn_out="$(mktempfile)"
+        ( set +e; export MACENV_INNER=1; "$fn" ) >"$fn_out" 2>&1 &
+        spin_while $! "$label" || rc=$?
+    else
+        "$fn" || rc=$?
+    fi
     local elapsed=$((SECONDS - start))
     ITEMS_DONE=$((ITEMS_DONE + 1))
     case "$rc" in
@@ -1611,7 +1703,7 @@ run_item() {
                     fi
                 else
                     RESULT_SKIP="$RESULT_SKIP $id"
-                    echo -e "${MUTED}◇ ${label} — instalado ${NC}${ACCENT}(atualização disponível)${NC}"
+                    echo -e "${GUT}${MUTED}◇ ${label} — instalado ${NC}${ACCENT}(atualização disponível)${NC}"
                 fi
             else
                 RESULT_SKIP="$RESULT_SKIP $id"
@@ -1623,6 +1715,11 @@ run_item() {
             ui_error "Falhou: ${label} (continuando)"
             ;;
     esac
+    # saída interna da fn (avisos, tail de log em falha) — indentada sob o item
+    if [[ -n "$fn_out" && -s "$fn_out" ]]; then
+        sed $'s/^/\033[38;2;90;100;128m│\033[0m   /' "$fn_out"
+    fi
+    bar_show
     return 0
 }
 
@@ -2171,9 +2268,17 @@ format_duration() {
 
 print_final_report() {
     local total_secs="$1"
-    echo ""
+    bar_clear
     if [[ "$COLOR_OK" == "1" ]]; then
-        rule_sweep "━"
+        echo -e "${GUT}"
+        local w line
+        w="$(term_cols)"
+        printf -v line '%*s' "$((w - 3))" ''
+        reveal_sweep "╰──${line// /─}"
+        echo ""
+        blackhole_spin 10
+    else
+        echo ""
     fi
 
     local n_ok n_skip n_fail n_up

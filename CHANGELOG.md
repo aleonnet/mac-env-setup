@@ -2,6 +2,15 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [3.7.0] - 2026-07-23
+
+### Changed — UI levada ao limite do bash single-file
+- **Calha vertical conectada** (estilo clack) do início ao fim: mensagens, itens, estágios (`├──`) e fechamento (`╰──`) compartilham a mesma espinha `│`; no fluxo de seleção cada pergunta (`◇`) permanece visível e vira resposta (`◆ Perfil: Dev`).
+- **Spinner de item que se transforma no resultado**: cada item roda sob um spinner braille âmbar na própria linha, que é substituída in-place por `✓/◇/↑/✗` com cronômetro; saída interna (avisos, tail de log em falha) aparece indentada sob o item.
+- **Barra orbit viva**: pinada como última linha e redesenhada após cada item (não mais só por estágio).
+- **Finale "event horizon"**: o anel do banner gira ao final — a luz da rampa blackbody percorre o disco de acreção em ~10 frames antes do resumo.
+- Mensagens `ui_*` não passam mais pelo `gum log`; gum fica só para seleção/confirm/cards. Tudo degrada como antes (non-TTY/`NO_COLOR`/`--verbose` mantêm o fluxo linear).
+
 ## [3.6.3] - 2026-07-23
 
 ### Changed
