@@ -34,9 +34,11 @@ python3 -c "import pty; pty.spawn(['/bin/bash','mac_env_install.sh','--dry-run',
 ### P1 — próximo passo natural
 
 1. ~~**Preservar linhas desconhecidas do `.zshrc`**~~ — **feito na v3.8.0** (`zshrc_migrate_tail`: tudo após o rodapé do arquivo anterior migra para a seção "Suas adições", com dedupe e round-trip estável).
-2. **`--doctor`** — modo diagnóstico sem instalar: PATH ok? fontes presentes? Xcode completo para iOS? receipts defasados? configs divergentes do template? Card de saúde com ações sugeridas.
-3. **`--upgrade-only`** — rodar apenas o engine de upgrades (scan + oferta + aplicar), sem passar pelos estágios de instalação.
-4. **CI no GitHub Actions** — runner macOS: `bash -n`, shellcheck, matriz de dry-runs (perfis × NO_COLOR × pipe), teste de pty. Badge no README. Hoje a validação é toda manual.
+2. ~~**`--doctor`**~~ — **feito na v3.9.0** (diagnóstico read-only: sistema, brew, catálogo por categoria, configs; exit 1 com problemas).
+3. ~~**`--upgrade-only`**~~ — **feito na v3.9.0** (só o engine de upgrades; headless aplica, interativo confirma).
+4. ~~**CI no GitHub Actions**~~ — **feito na v3.9.0** (`.github/workflows/ci.yml`: bash 3.2, shellcheck warning-clean bloqueante, dry-runs, pty, configs em HOME falso; badge no README).
+
+**P1 concluído por completo.** Próxima fronteira: P2.
 
 ### P2 — qualidade de vida
 

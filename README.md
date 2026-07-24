@@ -1,5 +1,7 @@
 # mac-env-setup
 
+![CI](https://github.com/aleonnet/mac-env-setup/actions/workflows/ci.yml/badge.svg)
+
 Instalador de ambiente de desenvolvimento para macOS em um único script Bash — **por categorias, com seletor interativo**, idempotente e pronto para rodar direto via `curl`. UI "Event Horizon": gradiente âmbar sobre preto, progresso em tempo real.
 
 ## Instalação
@@ -55,6 +57,8 @@ Veja tudo com `bash mac_env_install.sh --list`.
 | `--categories a,b,c` | categorias diretas, sem interação |
 | `--all` | tudo (= `--profile completo`) |
 | `--upgrade` | atualiza itens já instalados com versão nova no brew (sem a flag, o instalador pergunta quando interativo e mantém versões quando headless) |
+| `--upgrade-only` | só atualiza o que está instalado e sai — não instala nada novo (headless aplica direto; interativo confirma) |
+| `--doctor` | diagnóstico do ambiente: sistema, Homebrew, presença dos itens por categoria, configurações — nada é instalado ou alterado (exit 1 se houver problemas) |
 | `--yes`, `-y` | não pergunta nada; perfil padrão `terminal` |
 | `--dry-run` | mostra o plano e sai sem tocar no sistema |
 | `--list` | lista categorias/itens e sai |

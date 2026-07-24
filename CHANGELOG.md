@@ -2,6 +2,13 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [3.9.0] - 2026-07-23
+
+### Added — fecha o P1 do roadmap
+- **`--doctor`**: diagnóstico read-only com calha — sistema (CLT, Xcode completo), Homebrew (versão + itens do catálogo com atualização pendente), presença dos itens por categoria (snapshot do brew + fallbacks para apps manuais e instalações via curl), e configurações (`.zshrc` gerado/PATH, starship.toml, Ghostty/shader, fonte dos editores). Card final com placar; exit 1 se houver problemas.
+- **`--upgrade-only`**: roda apenas o engine de atualizações sobre todo o catálogo e sai — interativo confirma, headless aplica direto (a flag já é o consentimento).
+- **CI no GitHub Actions** (runner macOS): `bash -n` com o bash 3.2 do sistema, **shellcheck bloqueante em nível warning** (script zerado de warnings), matriz de dry-runs (perfis × NO_COLOR × pipe × --yes), teste de categoria inválida, dry-run sob PTY (caminhos de animação) e geração de configs em HOME falso com `zsh -n`. Badge no README.
+
 ## [3.8.0] - 2026-07-23
 
 ### Added

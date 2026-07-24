@@ -1,4 +1,8 @@
 #!/bin/bash
+# shellcheck disable=SC2034,SC2088
+# SC2034: o padrão IFS='|' read descompacta todos os campos dos registros
+#         mesmo quando nem todos são usados; SC2088: "~" aparece só em
+#         strings de exibição, nunca como caminho.
 # =============================================================================
 # Mac Environment Installer v3 — instalador por categorias com seletor
 # Uso local:  bash mac_env_install.sh [opções]
@@ -264,6 +268,7 @@ hex_to_rgb() {
 # ramp_rgb_at <pos 0..1000> — interpola a rampa e define R,G,B
 ramp_rgb_at() {
     local pos="$1"
+    # shellcheck disable=SC2206  # split intencional das paradas da rampa
     local stops=($BLACKBODY_STOPS)
     local n=${#stops[@]}
     local span=$((n - 1))
@@ -440,7 +445,7 @@ print_installer_banner() {
     blackhole_spin 10
     echo ""
     shimmer_line "               ◆  M A C · E N V  ◆"
-    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.8.0${NC}"
+    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.9.0${NC}"
     echo ""
     if [[ -t 1 ]]; then
         tput cnorm 2>/dev/null || true
@@ -843,6 +848,8 @@ DRY_RUN=0
 PROFILE=""
 CATEGORIES_ARG=""
 UPGRADE_FLAG=0
+DOCTOR=0
+UPGRADE_ONLY=0
 
 print_usage() {
     cat <<'USAGE'
@@ -859,6 +866,8 @@ Opções:
   --categories a,b,c  Categorias sem interação: terminal,dev,cloud,android,ios,apps
   --all               Tudo (equivale a --profile completo)
   --upgrade           Atualiza itens já instalados que tenham versão nova no brew
+  --upgrade-only      Só atualiza o que está instalado e sai (sem instalar nada novo)
+  --doctor            Diagnóstico do ambiente (nada é instalado ou alterado)
   --yes, -y           Não perguntar nada; usa o perfil padrão (terminal)
   --dry-run           Mostra o que seria instalado e sai, sem tocar no sistema
   --list              Lista categorias e itens disponíveis e sai
@@ -899,6 +908,8 @@ parse_args() {
             --yes|-y)       ASSUME_YES=1 ;;
             --all)          ALL=1 ;;
             --upgrade)      UPGRADE_FLAG=1 ;;
+            --upgrade-only) UPGRADE_ONLY=1 ;;
+            --doctor)       DOCTOR=1 ;;
             --dry-run)      DRY_RUN=1 ;;
             --profile)      PROFILE="${2:-}"; shift ;;
             --profile=*)    PROFILE="${1#*=}" ;;
@@ -1747,7 +1758,8 @@ backup_and_install_file() {
     local src="$1"
     local dest="$2"
     if [[ -f "$dest" ]]; then
-        local backup="${dest}.backup.$(date +%Y%m%d%H%M%S)"
+        local backup
+        backup="${dest}.backup.$(date +%Y%m%d%H%M%S)"
         cp "$dest" "$backup"
         ui_info "Backup: $backup"
     fi
@@ -2422,6 +2434,235 @@ print_final_report() {
 }
 
 # -----------------------------------------------------------------------------
+# --doctor: diagnóstico do ambiente, nada é instalado ou alterado
+# -----------------------------------------------------------------------------
+DOC_OK=0
+DOC_WARN=0
+DOC_FAIL=0
+DOC_FORMULAE=""
+DOC_CASKS=""
+
+doc_ok()   { DOC_OK=$((DOC_OK + 1));     echo -e "${GUT}${SUCCESS}✓${NC} $*"; }
+doc_warn() { DOC_WARN=$((DOC_WARN + 1)); echo -e "${GUT}${WARN}!${NC} $*"; }
+doc_fail() { DOC_FAIL=$((DOC_FAIL + 1)); echo -e "${GUT}${ERROR}✗${NC} $*"; }
+doc_head() { echo -e "${GUT}"; echo -e "${GUT}${ACCENT}◆${NC} ${BOLD}$1${NC}"; }
+
+# Presença de um item usando o snapshot do brew + fallbacks (apps manuais, curl)
+doctor_item_present() {
+    local id="$1"
+    case "$id" in
+        claude-code) command -v claude &>/dev/null || [[ -x "$HOME/.local/bin/claude" ]]; return $? ;;
+        blackhole)   [[ -d "$BLACKHOLE_DIR" ]]; return $? ;;
+        ghostty)     [[ -d "/Applications/Ghostty.app" ]] && return 0 ;;
+        iterm2)      [[ -d "/Applications/iTerm.app" ]] && return 0 ;;
+        docker)      [[ -d "/Applications/Docker.app" ]] && return 0 ;;
+        vscode)      [[ -d "/Applications/Visual Studio Code.app" ]] && return 0 ;;
+        cursor)      [[ -d "/Applications/Cursor.app" ]] && return 0 ;;
+        android-studio) [[ -d "/Applications/Android Studio.app" ]] && return 0 ;;
+    esac
+    local pkgs entry kind name
+    pkgs="$(item_pkgs "$id")" || return 1
+    [[ -n "$pkgs" ]] || return 1
+    for entry in $pkgs; do
+        kind="${entry%%:*}"
+        name="${entry#*:}"
+        name="${name##*/}"
+        if [[ "$kind" == "f" ]]; then
+            case " $DOC_FORMULAE " in
+                *" $name "*) : ;;
+                *) command -v "$name" &>/dev/null || return 1 ;;
+            esac
+        else
+            case " $DOC_CASKS " in
+                *" $name "*) : ;;
+                *) return 1 ;;
+            esac
+        fi
+    done
+    return 0
+}
+
+run_doctor() {
+    doc_head "Sistema"
+    doc_ok "macOS $(sw_vers -productVersion 2>/dev/null || echo '?') ($(uname -m)) · Homebrew em ${BREW_PREFIX}"
+    if xcode-select -p &>/dev/null; then
+        doc_ok "Xcode Command Line Tools"
+    else
+        doc_fail "Xcode Command Line Tools ausente — rode: xcode-select --install"
+    fi
+    if xcode-select -p 2>/dev/null | grep -q "Xcode.app"; then
+        doc_ok "Xcode completo (builds iOS disponíveis)"
+    else
+        doc_warn "Xcode completo ausente — builds Flutter iOS exigem o Xcode da App Store"
+    fi
+
+    doc_head "Homebrew"
+    if ! command -v brew &>/dev/null; then
+        doc_fail "Homebrew não encontrado — rode o instalador sem --doctor para instalá-lo"
+    else
+        doc_ok "brew $(brew --version 2>/dev/null | head -1 | awk '{print $2}')"
+        DOC_FORMULAE="$(brew list --formula 2>/dev/null | tr '\n' ' ')"
+        DOC_CASKS="$(brew list --cask 2>/dev/null | tr '\n' ' ')"
+        ITEMS_TOTAL=1
+        scan_outdated
+        local n_out=0 orec oid ocat olabel odef opkgs odesc outdated_labels=""
+        for orec in "${ITEM_DB[@]}"; do
+            IFS='|' read -r oid ocat olabel odef opkgs odesc <<< "$orec"
+            if item_outdated_summary "$oid" >/dev/null 2>&1; then
+                n_out=$((n_out + 1))
+                if [[ -n "$outdated_labels" ]]; then
+                    outdated_labels="${outdated_labels}, ${olabel}"
+                else
+                    outdated_labels="$olabel"
+                fi
+            fi
+        done
+        if [[ "$n_out" -gt 0 ]]; then
+            doc_warn "${n_out} item(ns) do catálogo com atualização (${outdated_labels}) — use --upgrade-only"
+        else
+            doc_ok "Itens do catálogo em dia no brew"
+        fi
+    fi
+
+    doc_head "Catálogo por categoria"
+    local rec cid clabel cdesc irec iid icat ilabel idef ipkgs idesc
+    for rec in "${CATEGORY_DB[@]}"; do
+        IFS='|' read -r cid clabel cdesc <<< "$rec"
+        local total=0 present=0 missing=""
+        for irec in "${ITEM_DB[@]}"; do
+            IFS='|' read -r iid icat ilabel idef ipkgs idesc <<< "$irec"
+            [[ "$icat" == "$cid" ]] || continue
+            total=$((total + 1))
+            if doctor_item_present "$iid"; then
+                present=$((present + 1))
+            else
+                if [[ -n "$missing" ]]; then
+                    missing="${missing}, ${ilabel}"
+                else
+                    missing="$ilabel"
+                fi
+            fi
+        done
+        if [[ $present -eq $total ]]; then
+            doc_ok "${clabel} — ${present}/${total}"
+        else
+            doc_warn "${clabel} — ${present}/${total} (ausentes: ${missing})"
+        fi
+    done
+
+    doc_head "Configurações"
+    if [[ -f "$HOME/.zshrc" ]]; then
+        if grep -qF '# Fim da Configuração' "$HOME/.zshrc"; then
+            doc_ok "~/.zshrc gerado pelo instalador"
+        else
+            doc_warn "~/.zshrc existe mas não foi gerado pelo instalador (regenerar migra adições externas)"
+        fi
+        if grep -qF '.local/bin' "$HOME/.zshrc"; then
+            doc_ok "~/.local/bin no PATH (Claude Code, uv, pipx)"
+        else
+            doc_warn "~/.local/bin fora do .zshrc — binários nativos (claude) podem sumir do PATH"
+        fi
+    else
+        doc_fail "~/.zshrc ausente"
+    fi
+    if command -v starship &>/dev/null; then
+        if [[ -f "$HOME/.config/starship.toml" ]]; then
+            doc_ok "starship.toml presente"
+        else
+            doc_warn "Starship instalado sem ~/.config/starship.toml (layout padrão em uso)"
+        fi
+    fi
+    if [[ -d "/Applications/Ghostty.app" ]]; then
+        if [[ -f "$HOME/.config/ghostty/config" ]]; then
+            if grep -q 'custom-shader' "$HOME/.config/ghostty/config"; then
+                doc_ok "Ghostty configurado (shader blackhole ativo)"
+            else
+                doc_ok "Ghostty configurado"
+            fi
+        else
+            doc_warn "Ghostty sem ~/.config/ghostty/config (o instalador gera um)"
+        fi
+    fi
+    local erec elabel eapp edir esfile
+    for erec in "VS Code|Visual Studio Code|Code" "Cursor|Cursor|Cursor"; do
+        IFS='|' read -r elabel eapp edir <<< "$erec"
+        [[ -d "/Applications/${eapp}.app" ]] || continue
+        esfile="$HOME/Library/Application Support/${edir}/User/settings.json"
+        if [[ -f "$esfile" ]] && grep -q 'terminal.integrated.fontFamily' "$esfile"; then
+            doc_ok "${elabel}: fonte do terminal configurada"
+        else
+            doc_warn "${elabel}: terminal.integrated.fontFamily ausente — ícones quebrados no terminal integrado"
+        fi
+    done
+
+    echo -e "${GUT}"
+    local verdict="Diagnóstico: ${DOC_OK} ✓ · ${DOC_WARN} aviso(s) · ${DOC_FAIL} problema(s)"
+    if [[ -n "$GUM" ]]; then
+        local color="#00e5cc"
+        if [[ $DOC_FAIL -gt 0 ]]; then color="#e63946"; elif [[ $DOC_WARN -gt 0 ]]; then color="#f5b000"; fi
+        "$GUM" style --border rounded --border-foreground "$color" --padding "0 2" "$verdict"
+    else
+        echo "$verdict"
+    fi
+    if [[ $DOC_FAIL -gt 0 ]]; then
+        return 1
+    fi
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# --upgrade-only: só o engine de atualizações, sem instalar nada novo
+# -----------------------------------------------------------------------------
+select_all_items() {
+    SELECTED_ITEMS=""
+    local rec id cat label def pkgs desc
+    for rec in "${ITEM_DB[@]}"; do
+        IFS='|' read -r id cat label def pkgs desc <<< "$rec"
+        select_item "$id"
+    done
+    ITEMS_TOTAL="$(count_words "$SELECTED_ITEMS")"
+    return 0
+}
+
+run_upgrade_only() {
+    if ! command -v brew &>/dev/null && [[ ! -x "$BREW_PREFIX/bin/brew" ]]; then
+        ui_error "Homebrew não encontrado — nada a atualizar."
+        return 1
+    fi
+    ensure_brew_in_path
+    select_all_items
+    if ! can_prompt; then
+        UPGRADE_FLAG=1   # pedir --upgrade-only headless já é consentimento
+    fi
+    scan_outdated
+    offer_upgrades
+    if [[ -z "$PENDING_UPDATES" ]]; then
+        ui_success "Tudo atualizado — nenhum item do catálogo tem versão nova no brew."
+        return 0
+    fi
+    if [[ "$DO_UPGRADE" != "1" ]]; then
+        ui_info "Nenhuma atualização aplicada."
+        return 0
+    fi
+    local id label start fail=0
+    for id in $PENDING_UPDATES; do
+        label="$(item_label "$id")"
+        start=$SECONDS
+        if upgrade_item_pkgs "$id"; then
+            ui_up "$label" $((SECONDS - start))
+        else
+            ui_error "Falhou ao atualizar: ${label}"
+            fail=1
+        fi
+    done
+    if [[ $fail -eq 1 ]]; then
+        return 1
+    fi
+    ui_success "Atualizações concluídas."
+    return 0
+}
+
+# -----------------------------------------------------------------------------
 # Main
 # -----------------------------------------------------------------------------
 main() {
@@ -2432,6 +2673,15 @@ main() {
     print_installer_banner
     print_gum_status
     detect_macos_or_die
+
+    if [[ "$DOCTOR" == "1" ]]; then
+        run_doctor
+        exit $?
+    fi
+    if [[ "$UPGRADE_ONLY" == "1" ]]; then
+        run_upgrade_only
+        exit $?
+    fi
 
     resolve_selection
     compute_stages

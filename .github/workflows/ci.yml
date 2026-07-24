@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  MACENV_USE_GUM: "0"   # sem download de gum em CI (rede/flake)
+
+jobs:
+  test:
+    name: bash 3.2 · shellcheck · dry-runs
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sintaxe com o bash 3.2 do sistema
+        run: /bin/bash -n mac_env_install.sh
+
+      - name: ShellCheck (bloqueante em nível warning)
+        run: |
+          brew install shellcheck
+          shellcheck -S warning mac_env_install.sh
+
+      - name: Dry-runs headless (perfis e categorias)
+        run: |
+          set -e
+          for p in completo terminal dev mobile; do
+            /bin/bash mac_env_install.sh --dry-run --profile "$p" > /dev/null
+          done
+          NO_COLOR=1 /bin/bash mac_env_install.sh --dry-run --categories terminal,dev > /dev/null
+          /bin/bash mac_env_install.sh --dry-run --yes > /dev/null
+          /bin/bash mac_env_install.sh --list > /dev/null
+          /bin/bash mac_env_install.sh --help > /dev/null
+
+      - name: Pipe-safety (curl | bash simulado)
+        run: cat mac_env_install.sh | /bin/bash -s -- --dry-run --profile dev > /dev/null
+
+      - name: Categoria inválida deve falhar
+        run: |
+          if /bin/bash mac_env_install.sh --dry-run --categories nao-existe > /dev/null 2>&1; then
+            echo "esperava exit != 0" && exit 1
+          fi
+
+      - name: Dry-run sob PTY (caminhos de animação/TTY)
+        run: |
+          python3 - <<'PY'
+          import os, pty, sys
+          os.environ.setdefault("TERM", "xterm-256color")
+          status = pty.spawn(["/bin/bash", "mac_env_install.sh", "--dry-run", "--profile", "terminal"])
+          sys.exit(1 if status and os.waitstatus_to_exitcode(status) else 0)
+          PY
+
+      - name: Geração de configs em HOME falso
+        run: |
+          set -e
+          FAKE="$(mktemp -d)"
+          sed '$d' mac_env_install.sh | sed '$d' > /tmp/lib.sh
+          HOME="$FAKE" /bin/bash -c '
+            set -euo pipefail
+            source /tmp/lib.sh
+            GUM=""
+            apply_categories terminal dev android
+            PROMPT_ACTIVE=p10k
+            write_zshrc
+            PROMPT_ACTIVE=starship
+            write_zshrc
+          '
+          zsh -n "$FAKE/.zshrc"
+          grep -q 'starship init zsh' "$FAKE/.zshrc"
+          grep -q 'Suas adições' "$FAKE/.zshrc" && exit 1 || true   # sem tail não há seção
