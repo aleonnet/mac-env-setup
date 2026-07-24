@@ -2,6 +2,15 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [3.11.0] - 2026-07-24
+
+### Added — P3 fases 1-3 (self-update, rollback, Xcode)
+- **`--self-update`**: baixa o `main`, compara SHA-256, valida a sintaxe do download e substitui o próprio arquivo com backup `.bak` (confirma quando interativo). Via `curl | bash` avisa que já se está na versão remota. Nova constante `MACENV_VERSION` unifica a versão (banner e comparações).
+- **`--restore-zshrc`**: restaura o backup mais recente do `~/.zshrc` (mostra diferença em linhas, confirma; headless exige `--yes`; o atual vira backup antes).
+- **`--remove a,b,c`**: desinstalação por item do catálogo com card de plano explícito (avisa quando um app inteiro será apagado) e confirmação; casos especiais: claude-code (remove só o binário, preserva `~/.claude`), blackhole (remove o clone e comenta o `custom-shader` na config do Ghostty, com backup). Apps fora do brew são apontados para remoção manual.
+- **Xcode via `mas`** (categoria ios, opcional/default 0): instala o `mas` se preciso e baixa o Xcode da App Store (exige login; falha graciosa com instrução). Atualizações ficam com a App Store.
+- Robustez: `can_prompt` agora testa a **abertura real** do `/dev/tty` (sessões detached passavam no `-r/-w` e quebravam o gum).
+
 ## [3.10.0] - 2026-07-24
 
 ### Added — fecha o P2 do roadmap

@@ -42,7 +42,7 @@ curl -fsSL https://raw.githubusercontent.com/aleonnet/mac-env-setup/main/mac_env
 - **dev** — git (Homebrew), GitHub CLI, jq, wget, Docker Desktop, Node.js + pnpm + bun, pyenv + pyenv-virtualenv, **Claude Code** (instalador nativo da Anthropic)
 - **cloud** — AWS CLI, Supabase CLI
 - **android** — OpenJDK 21 LTS (deliberado: é o JDK que Android Studio/Gradle suportam — 25/26 quebram builds Flutter), android-platform-tools (adb); Android Studio opcional
-- **ios** — CocoaPods (necessário para builds Flutter iOS; o Xcode completo vem só da App Store)
+- **ios** — CocoaPods (necessário para builds Flutter iOS); Xcode completo opcional via `mas` (~12 GB, exige login na App Store)
 - **apps** — Visual Studio Code, Cursor
 
 kubectl vem embutido no Docker Desktop e por isso não está no catálogo.
@@ -59,6 +59,9 @@ Veja tudo com `bash mac_env_install.sh --list`.
 | `--upgrade` | atualiza itens já instalados com versão nova no brew (sem a flag, o instalador pergunta quando interativo e mantém versões quando headless) |
 | `--upgrade-only` | só atualiza o que está instalado e sai — não instala nada novo (headless aplica direto; interativo confirma) |
 | `--doctor` | diagnóstico do ambiente: sistema, Homebrew, presença dos itens por categoria, configurações — nada é instalado ou alterado (exit 1 se houver problemas) |
+| `--self-update` | atualiza o script local para a versão do `main` (SHA-256 + validação de sintaxe, backup `.bak`) |
+| `--restore-zshrc` | restaura o backup mais recente do `~/.zshrc` (headless exige `--yes`) |
+| `--remove a,b,c` | remove itens do catálogo com plano explícito e confirmação (avisa quando apaga apps inteiros) |
 | `--yes`, `-y` | não pergunta nada; perfil padrão `terminal` |
 | `--dry-run` | mostra o plano e sai sem tocar no sistema |
 | `--list` | lista categorias/itens e sai |

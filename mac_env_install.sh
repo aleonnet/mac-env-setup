@@ -13,6 +13,9 @@
 # =============================================================================
 set -euo pipefail
 
+MACENV_VERSION="3.11.0"
+MACENV_RAW_URL="https://raw.githubusercontent.com/aleonnet/mac-env-setup/main/mac_env_install.sh"
+
 # -----------------------------------------------------------------------------
 # Cores — paleta "Event Horizon" (âmbar #f5b000, assinatura do ghostty-blackhole)
 # Rampa blackbody: brasa -> âmbar -> branco-quente
@@ -445,7 +448,7 @@ print_installer_banner() {
     blackhole_spin 10
     echo ""
     shimmer_line "               ◆  M A C · E N V  ◆"
-    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.10.0${NC}"
+    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v${MACENV_VERSION}${NC}"
     echo ""
     if [[ -t 1 ]]; then
         tput cnorm 2>/dev/null || true
@@ -665,7 +668,7 @@ CATEGORY_DB=(
     "dev|Dev Essentials|git, gh, jq, wget, Docker, Node/pnpm/bun, pyenv, Claude Code"
     "cloud|Cloud & Infra|awscli, supabase"
     "android|Mobile Android|OpenJDK 21, platform-tools, Android Studio"
-    "ios|Mobile iOS|CocoaPods (builds Flutter/iOS)"
+    "ios|Mobile iOS|Xcode (opcional), CocoaPods (builds Flutter/iOS)"
     "apps|Apps|VS Code, Cursor"
 )
 
@@ -697,6 +700,7 @@ ITEM_DB=(
     "openjdk21|android|OpenJDK 21 (LTS)|1|f:openjdk@21|JDK que o tooling Android/Gradle suporta (25/26 quebram builds)"
     "platform-tools|android|Android platform-tools (adb)|1|c:android-platform-tools|adb/fastboot para devices Android"
     "android-studio|android|Android Studio|0|c!:android-studio|IDE Android completa (pesada)"
+    "xcode|ios|Xcode (App Store, ~12 GB)|0||IDE da Apple via mas — exige login na App Store"
     "cocoapods|ios|CocoaPods|1|f:cocoapods|dependências iOS — necessário para Flutter iOS"
     "vscode|apps|Visual Studio Code|1|c!:visual-studio-code|editor da Microsoft"
     "cursor|apps|Cursor|1|c!:cursor|editor com IA integrada"
@@ -932,6 +936,9 @@ CATEGORIES_ARG=""
 UPGRADE_FLAG=0
 DOCTOR=0
 UPGRADE_ONLY=0
+SELF_UPDATE=0
+RESTORE_ZSHRC=0
+REMOVE_ARG=""
 
 print_usage() {
     cat <<'USAGE'
@@ -951,6 +958,9 @@ Opções:
   --upgrade           Atualiza itens já instalados que tenham versão nova no brew
   --upgrade-only      Só atualiza o que está instalado e sai (sem instalar nada novo)
   --doctor            Diagnóstico do ambiente (nada é instalado ou alterado)
+  --self-update       Atualiza este script para a versão do branch main
+  --restore-zshrc     Restaura o backup mais recente do ~/.zshrc e sai
+  --remove a,b,c      Remove itens do catálogo (com confirmação; headless exige --yes)
   --yes, -y           Não perguntar nada; usa o perfil padrão (terminal)
   --dry-run           Mostra o que seria instalado e sai, sem tocar no sistema
   --list              Lista categorias e itens disponíveis e sai
@@ -993,6 +1003,10 @@ parse_args() {
             --upgrade)      UPGRADE_FLAG=1 ;;
             --upgrade-only) UPGRADE_ONLY=1 ;;
             --doctor)       DOCTOR=1 ;;
+            --self-update)  SELF_UPDATE=1 ;;
+            --restore-zshrc) RESTORE_ZSHRC=1 ;;
+            --remove)       REMOVE_ARG="${2:-}"; shift ;;
+            --remove=*)     REMOVE_ARG="${1#*=}" ;;
             --dry-run)      DRY_RUN=1 ;;
             --profile)      PROFILE="${2:-}"; shift ;;
             --profile=*)    PROFILE="${1#*=}" ;;
@@ -1019,6 +1033,7 @@ can_prompt() {
         return 1
     fi
     [[ -r /dev/tty && -w /dev/tty ]] || return 1
+    ( : </dev/tty ) 2>/dev/null || return 1   # -r/-w não bastam: sessões detached falham no open
     return 0
 }
 
@@ -1713,6 +1728,24 @@ install_android_studio() {
         return 100
     fi
     run_quiet_step "Instalando Android Studio" brew install --cask android-studio || return 1
+    return 0
+}
+
+# Xcode completo via mas (Mac App Store CLI). App id 497799835.
+# Atualizações ficam com a própria App Store (campo pacotes vazio de propósito).
+install_xcode() {
+    if [[ -d "/Applications/Xcode.app" ]]; then
+        return 100
+    fi
+    ensure_brew_in_path
+    if ! command -v mas &>/dev/null; then
+        run_quiet_step "Instalando mas (Mac App Store CLI)" brew install mas || return 1
+    fi
+    ui_info "Baixando Xcode da App Store (~12 GB — pode demorar bastante)..."
+    if ! run_quiet_step "Instalando Xcode via mas" mas install 497799835; then
+        ui_warn "Falhou — abra o app App Store, entre com seu Apple ID e re-execute."
+        return 1
+    fi
     return 0
 }
 
@@ -2692,6 +2725,9 @@ print_final_report() {
     if result_ok android-studio; then
         add_step "Abra o Android Studio uma vez para instalar o SDK"
     fi
+    if result_ok xcode; then
+        add_step "Abra o Xcode uma vez para aceitar a licença e instalar componentes"
+    fi
     if ! category_selected terminal && [[ -n "$RESULT_OK" ]]; then
         add_step "Seu ~/.zshrc não foi alterado — adicione os inits (pyenv, JAVA_HOME) se precisar"
     fi
@@ -2713,6 +2749,197 @@ print_final_report() {
     if [[ "$n_fail" -gt 0 ]]; then
         return 1
     fi
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# --self-update: substitui este arquivo pela versão do branch main
+# -----------------------------------------------------------------------------
+run_self_update() {
+    local self="${BASH_SOURCE[0]:-}"
+    if [[ -z "$self" || ! -f "$self" ]]; then
+        ui_info "Execução via pipe (curl | bash) já usa sempre a versão remota — nada a atualizar."
+        return 0
+    fi
+    local tmp
+    tmp="$(mktempfile)"
+    if ! download_file "$MACENV_RAW_URL" "$tmp"; then
+        ui_error "Falha ao baixar a versão remota."
+        return 1
+    fi
+    if ! bash -n "$tmp" 2>/dev/null; then
+        ui_error "Download remoto inválido — atualização abortada."
+        return 1
+    fi
+    local h_local h_remote
+    h_local="$(shasum -a 256 "$self" | awk '{print $1}')"
+    h_remote="$(shasum -a 256 "$tmp" | awk '{print $1}')"
+    if [[ "$h_local" == "$h_remote" ]]; then
+        ui_success "Já está na versão mais recente (v${MACENV_VERSION})."
+        return 0
+    fi
+    local remote_ver
+    remote_ver="$(grep -m1 '^MACENV_VERSION=' "$tmp" | cut -d'"' -f2 || true)"
+    if can_prompt; then
+        if ! gum_confirm_tty "Atualizar v${MACENV_VERSION} → v${remote_ver:-?}?" --affirmative "Atualizar" --negative "Cancelar"; then
+            ui_info "Atualização cancelada."
+            return 0
+        fi
+    fi
+    cp "$self" "${self}.bak"
+    cat "$tmp" > "$self"
+    chmod +x "$self" 2>/dev/null || true
+    ui_success "Atualizado para v${remote_ver:-nova} (backup em ${self}.bak)"
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# --restore-zshrc: volta o backup mais recente do ~/.zshrc
+# -----------------------------------------------------------------------------
+run_restore_zshrc() {
+    local latest
+    latest="$(/bin/ls -t "$HOME"/.zshrc.backup.* 2>/dev/null | head -1 || true)"
+    if [[ -z "$latest" ]]; then
+        ui_error "Nenhum backup ~/.zshrc.backup.* encontrado."
+        return 1
+    fi
+    local n_diff="?"
+    if [[ -f "$HOME/.zshrc" ]]; then
+        n_diff="$(diff "$latest" "$HOME/.zshrc" 2>/dev/null | grep -c '^[<>]' || true)"
+    fi
+    ui_info "Backup mais recente: ${latest##*/} (${n_diff} linha(s) diferentes do atual)"
+    if can_prompt; then
+        if ! gum_confirm_tty "Restaurar este backup como ~/.zshrc?" --affirmative "Restaurar" --negative "Cancelar"; then
+            ui_info "Restauração cancelada."
+            return 0
+        fi
+    elif [[ "$ASSUME_YES" != "1" ]]; then
+        ui_warn "Sem interação: confirme com --yes para restaurar."
+        return 1
+    fi
+    if [[ -f "$HOME/.zshrc" ]]; then
+        cp "$HOME/.zshrc" "$HOME/.zshrc.backup.$(date +%Y%m%d%H%M%S)"
+    fi
+    cp "$latest" "$HOME/.zshrc"
+    if zsh -n "$HOME/.zshrc" 2>/dev/null; then
+        ui_success "~/.zshrc restaurado de ${latest##*/} (o anterior virou backup)"
+    else
+        ui_warn "~/.zshrc restaurado, mas o zsh apontou erro de sintaxe — verifique o arquivo."
+    fi
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# --remove a,b,c: desinstalação por item do catálogo, com confirmação
+# -----------------------------------------------------------------------------
+run_remove() {
+    local ids id
+    ids="$(echo "$REMOVE_ARG" | tr ',' ' ')"
+    [[ -n "${ids// /}" ]] || { ui_error "Use: --remove item1,item2 (veja --list)"; return 1; }
+    for id in $ids; do
+        if ! item_exists "$id"; then
+            ui_error "Item desconhecido: ${id} (use --list para ver os ids)"
+            return 1
+        fi
+    done
+
+    # monta o plano de remoção
+    local plan="" actions="" pkgs entry kind name label
+    for id in $ids; do
+        label="$(item_label "$id")"
+        case "$id" in
+            claude-code)
+                if [[ -x "$HOME/.local/bin/claude" ]]; then
+                    plan="${plan}• ${label}: remover ~/.local/bin/claude (config ~/.claude preservada)"$'\n'
+                    actions="${actions}rm-claude "
+                else
+                    plan="${plan}• ${label}: não instalado — nada a fazer"$'\n'
+                fi
+                continue
+                ;;
+            blackhole)
+                if [[ -d "$BLACKHOLE_DIR" ]]; then
+                    plan="${plan}• ${label}: remover ${BLACKHOLE_DIR} e desativar o shader na config do Ghostty"$'\n'
+                    actions="${actions}rm-blackhole "
+                else
+                    plan="${plan}• ${label}: não instalado — nada a fazer"$'\n'
+                fi
+                continue
+                ;;
+        esac
+        pkgs="$(item_pkgs "$id")" || true
+        for entry in $pkgs; do
+            kind="${entry%%:*}"
+            name="${entry#*:}"
+            name="${name##*/}"
+            if [[ "$kind" == "f" ]]; then
+                if brew list "$name" &>/dev/null; then
+                    plan="${plan}• ${label}: brew uninstall ${name}"$'\n'
+                    actions="${actions}f:${name} "
+                else
+                    plan="${plan}• ${label}: ${name} não instalado via brew — nada a fazer"$'\n'
+                fi
+            else
+                if brew list --cask "$name" &>/dev/null; then
+                    plan="${plan}• ${label}: brew uninstall --cask ${name} (APAGA o app de /Applications)"$'\n'
+                    actions="${actions}c:${name} "
+                else
+                    plan="${plan}• ${label}: cask ${name} não veio do brew — se o app existir, remova manualmente de /Applications"$'\n'
+                fi
+            fi
+        done
+    done
+
+    echo ""
+    if [[ -n "$GUM" ]]; then
+        "$GUM" style --border rounded --border-foreground "#e63946" --padding "0 2" --width "$(($(term_cols) - 4))" \
+            "Plano de remoção:"$'\n'"$plan"
+    else
+        echo -e "${ERROR}Plano de remoção:${NC}"
+        echo "$plan"
+    fi
+    if [[ -z "${actions// /}" ]]; then
+        ui_info "Nada a remover."
+        return 0
+    fi
+    if can_prompt; then
+        if ! gum_confirm_tty "Executar a remoção acima?" --affirmative "Remover" --negative "Cancelar"; then
+            ui_info "Remoção cancelada."
+            return 0
+        fi
+    elif [[ "$ASSUME_YES" != "1" ]]; then
+        ui_warn "Sem interação: confirme com --yes para remover."
+        return 1
+    fi
+
+    local fail=0 act
+    for act in $actions; do
+        case "$act" in
+            rm-claude)
+                rm -f "$HOME/.local/bin/claude" && ui_success "claude removido de ~/.local/bin" || fail=1
+                ;;
+            rm-blackhole)
+                rm -rf "$BLACKHOLE_DIR" && ui_success "ghostty-blackhole removido" || fail=1
+                local gcfg="$HOME/.config/ghostty/config"
+                if [[ -f "$gcfg" ]] && grep -q 'custom-shader' "$gcfg"; then
+                    cp "$gcfg" "${gcfg}.backup.$(date +%Y%m%d%H%M%S)"
+                    sed -i '' 's/^custom-shader/# custom-shader/' "$gcfg"
+                    ui_info "Linhas custom-shader comentadas na config do Ghostty (backup criado)"
+                fi
+                ;;
+            f:*)
+                run_quiet_step "Removendo ${act#f:}" brew uninstall "${act#f:}" || fail=1
+                ;;
+            c:*)
+                run_quiet_step "Removendo ${act#c:}" brew uninstall --cask "${act#c:}" || fail=1
+                ;;
+        esac
+    done
+    ui_info "Blocos correspondentes no ~/.zshrc são auto-guardados e ficam inertes."
+    if [[ $fail -eq 1 ]]; then
+        return 1
+    fi
+    ui_success "Remoção concluída."
     return 0
 }
 
@@ -2957,12 +3184,25 @@ main() {
     print_gum_status
     detect_macos_or_die
 
+    if [[ "$SELF_UPDATE" == "1" ]]; then
+        run_self_update
+        exit $?
+    fi
     if [[ "$DOCTOR" == "1" ]]; then
         run_doctor
         exit $?
     fi
     if [[ "$UPGRADE_ONLY" == "1" ]]; then
         run_upgrade_only
+        exit $?
+    fi
+    if [[ "$RESTORE_ZSHRC" == "1" ]]; then
+        run_restore_zshrc
+        exit $?
+    fi
+    if [[ -n "$REMOVE_ARG" ]]; then
+        ensure_brew_in_path
+        run_remove
         exit $?
     fi
 

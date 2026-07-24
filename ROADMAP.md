@@ -51,10 +51,10 @@ python3 -c "import pty; pty.spawn(['/bin/bash','mac_env_install.sh','--dry-run',
 
 ### P3 — apostas maiores
 
-9. **Companion TUI em Bubble Tea** — binário Go (~3 MB) baixado com checksum como o gum, só para a fase de seleção: busca, descrições visíveis, preview de perfil. Bash continua sendo o motor; fallback atual intacto.
-10. **`--self-update`** — comparar hash local vs `main` e oferecer atualização do próprio script.
-11. **Xcode completo via `mas`** (Mac App Store CLI) na categoria ios — resolve o único gap do fluxo Flutter iOS; exige login na App Store (interativo).
-12. **Rollback** — `--restore-zshrc` (último backup) e desinstalação por item (`--remove item`), fechando o ciclo de vida.
+9. **Companion TUI em Bubble Tea + huh v2** — **aprovado, próximo passo (v4.0.0)**: binário Go universal baixado com checksum como o gum, só para a fase de seleção (busca fuzzy, painel de descrição, tema Event Horizon em Lipgloss, blackhole animado); pipeline de release no GitHub Actions; bash continua o motor e o fluxo gum atual vira fallback.
+10. ~~**`--self-update`**~~ — **feito na v3.11.0** (SHA-256 + validação de sintaxe + backup `.bak`; constante `MACENV_VERSION`).
+11. ~~**Xcode completo via `mas`**~~ — **feito na v3.11.0** (item opcional na categoria ios; falha graciosa sem login).
+12. ~~**Rollback**~~ — **feito na v3.11.0** (`--restore-zshrc` e `--remove a,b,c` com plano explícito e confirmação).
 
 ## Decisões que não devem regredir (ver CLAUDE.md para o como)
 
