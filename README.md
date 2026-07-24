@@ -12,7 +12,7 @@ Instalador de ambiente de desenvolvimento para macOS em um único script Bash �
 curl -fsSL https://raw.githubusercontent.com/aleonnet/mac-env-setup/main/mac_env_install.sh | bash
 ```
 
-Em terminal interativo, abre o **seletor de perfis**. Sem TTY (CI etc.), usa o perfil `terminal`.
+Em terminal interativo, abre o **seletor de perfis** — com "Repetir última instalação" quando houver uma seleção salva, e ajuste **item a item** no modo Personalizado. Sem TTY (CI etc.), usa o perfil `terminal`. Cada execução salva a seleção em `~/.config/macenv/state` e o relatório com tempos em `~/.config/macenv/last-run.log`.
 
 ### Headless / sem interação
 
@@ -53,7 +53,7 @@ Veja tudo com `bash mac_env_install.sh --list`.
 
 | Flag | Efeito |
 |---|---|
-| `--profile <p>` | `completo` \| `terminal` \| `dev` \| `mobile`, sem interação |
+| `--profile <p>` | `completo` \| `terminal` \| `dev` \| `mobile` \| `last` (repete a última instalação salva), sem interação |
 | `--categories a,b,c` | categorias diretas, sem interação |
 | `--all` | tudo (= `--profile completo`) |
 | `--upgrade` | atualiza itens já instalados com versão nova no brew (sem a flag, o instalador pergunta quando interativo e mantém versões quando headless) |
@@ -72,6 +72,7 @@ Variáveis de ambiente: `MACENV_USE_GUM` (`auto`/`1`/`0`), `MACENV_GUM_VERSION` 
 - **`~/.config/starship.toml`** — preset oficial do Starship: `tokyo-night` (padrão) ou `catppuccin-powerline`, escolhido no seletor (fallback Event Horizon embutido quando sem rede); backup antes de sobrescrever. Escolher Powerlevel10k mantém seu `~/.p10k.zsh` intacto e instala a MesloLGS (fonte recomendada do p10k).
 - **`~/.config/ghostty/config`** — fonte Nerd Font, cursor âmbar e shader blackhole (quando selecionado); config nova é criada completa, config existente é preservada — no máximo o bloco `custom-shader` é **anexado** (com backup) se ainda não houver um.
 - **VS Code / Cursor** — `terminal.integrated.fontFamily` recebe a Nerd Font no `settings.json` de cada editor instalado (valor existente é preservado; backup antes de escrever).
+- **iTerm2** — fonte Nerd aplicada ao perfil padrão (iTerm2 fechado) ou via Dynamic Profile "MacEnv" (iTerm2 aberto); fonte Nerd já configurada é preservada.
 
 ## Comportamentos importantes
 

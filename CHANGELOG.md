@@ -2,6 +2,14 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [3.10.0] - 2026-07-24
+
+### Added — fecha o P2 do roadmap
+- **Seleção por item no Personalizado**: depois das categorias, um multi-select com todos os itens (rótulo + descrição, defaults pré-marcados) permite desmarcar padrões e incluir opcionais; terminal/prompt são derivados da seleção (ambos os prompts marcados → pergunta qual ativar).
+- **Perfil persistente**: a seleção é salva em `~/.config/macenv/state` ao iniciar a instalação; o seletor ganha "Repetir última instalação" e o headless ganha `--profile last`. Itens/categorias que saírem do catálogo são filtrados no load.
+- **Log de execução**: relatório em texto puro com tempos por item em `~/.config/macenv/last-run.log`.
+- **Fonte automática no iTerm2**: com o iTerm2 fechado, define a fonte Nerd no perfil padrão via `defaults export`/PlistBuddy/`defaults import` (respeitando o cfprefsd, preservando fonte Nerd existente); com o app aberto ou sem plist, cria o Dynamic Profile "MacEnv" (hot-load).
+
 ## [3.9.0] - 2026-07-23
 
 ### Added — fecha o P1 do roadmap

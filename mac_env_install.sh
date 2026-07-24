@@ -445,7 +445,7 @@ print_installer_banner() {
     blackhole_spin 10
     echo ""
     shimmer_line "               ◆  M A C · E N V  ◆"
-    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.9.0${NC}"
+    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.10.0${NC}"
     echo ""
     if [[ -t 1 ]]; then
         tput cnorm 2>/dev/null || true
@@ -708,6 +708,76 @@ PROMPT_ACTIVE=""        # starship | p10k | vazio
 STARSHIP_PRESET="tokyo-night"   # tokyo-night | catppuccin-powerline
 TERMINAL_CHOICE=""      # ghostty | iterm2 | ambos | vazio
 PROFILE_LABEL=""
+SELECTION_MODE="preset" # preset | custom | repeat
+ITEM_TIMES=""           # "id:segundos" por item processado
+
+# Estado persistente (última seleção + relatório da última execução)
+MACENV_STATE_DIR="$HOME/.config/macenv"
+
+save_selection_state() {
+    mkdir -p "$MACENV_STATE_DIR" 2>/dev/null || return 0
+    {
+        echo "# última seleção — mac_env_install.sh ($(date '+%Y-%m-%d %H:%M'))"
+        echo "PROFILE_LABEL=${PROFILE_LABEL}"
+        echo "SELECTED_CATEGORIES=${SELECTED_CATEGORIES}"
+        echo "SELECTED_ITEMS=${SELECTED_ITEMS}"
+        echo "PROMPT_ACTIVE=${PROMPT_ACTIVE}"
+        echo "TERMINAL_CHOICE=${TERMINAL_CHOICE}"
+        echo "STARSHIP_PRESET=${STARSHIP_PRESET}"
+    } > "$MACENV_STATE_DIR/state" 2>/dev/null || true
+    return 0
+}
+
+item_exists() {
+    local rec id cat label def pkgs desc
+    for rec in "${ITEM_DB[@]}"; do
+        IFS='|' read -r id cat label def pkgs desc <<< "$rec"
+        if [[ "$id" == "$1" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Carrega a última seleção, filtrando ids/categorias que saíram do catálogo
+load_selection_state() {
+    local f="$MACENV_STATE_DIR/state" line
+    [[ -f "$f" ]] || return 1
+    while IFS= read -r line; do
+        case "$line" in
+            PROFILE_LABEL=*)       PROFILE_LABEL="${line#*=}" ;;
+            SELECTED_CATEGORIES=*) SELECTED_CATEGORIES="${line#*=}" ;;
+            SELECTED_ITEMS=*)      SELECTED_ITEMS="${line#*=}" ;;
+            PROMPT_ACTIVE=*)       PROMPT_ACTIVE="${line#*=}" ;;
+            TERMINAL_CHOICE=*)     TERMINAL_CHOICE="${line#*=}" ;;
+            STARSHIP_PRESET=*)     STARSHIP_PRESET="${line#*=}" ;;
+        esac
+    done < "$f"
+    local filtered="" it
+    for it in $SELECTED_ITEMS; do
+        if item_exists "$it"; then
+            filtered="$filtered $it"
+        fi
+    done
+    SELECTED_ITEMS="$filtered"
+    filtered=""
+    for it in $SELECTED_CATEGORIES; do
+        if preset_valid_category "$it"; then
+            filtered="$filtered $it"
+        fi
+    done
+    SELECTED_CATEGORIES="$filtered"
+    [[ -n "${SELECTED_ITEMS// /}" && -n "${SELECTED_CATEGORIES// /}" ]] || return 1
+    return 0
+}
+
+state_summary() {
+    local label
+    label="$(grep -m1 '^PROFILE_LABEL=' "$MACENV_STATE_DIR/state" 2>/dev/null | cut -d= -f2- || true)"
+    local items
+    items="$(grep -m1 '^SELECTED_ITEMS=' "$MACENV_STATE_DIR/state" 2>/dev/null | cut -d= -f2- || true)"
+    echo "${label:-?} · $(count_words "$items") itens"
+}
 
 category_selected() {
     case " $SELECTED_CATEGORIES " in
@@ -775,6 +845,18 @@ item_label() {
         fi
     done
     echo "$1"
+}
+
+item_id_by_label() {
+    local rec id cat label def pkgs desc
+    for rec in "${ITEM_DB[@]}"; do
+        IFS='|' read -r id cat label def pkgs desc <<< "$rec"
+        if [[ "$label" == "$1" ]]; then
+            echo "$id"
+            return 0
+        fi
+    done
+    return 1
 }
 
 item_pkgs() {
@@ -862,7 +944,8 @@ Uso:
 Sem opções (em terminal interativo): abre o seletor de perfis e categorias.
 
 Opções:
-  --profile <p>       Perfil sem interação: completo | terminal | dev | mobile
+  --profile <p>       Perfil sem interação: completo | terminal | dev | mobile | last
+                      (last = repete a última instalação salva)
   --categories a,b,c  Categorias sem interação: terminal,dev,cloud,android,ios,apps
   --all               Tudo (equivale a --profile completo)
   --upgrade           Atualiza itens já instalados que tenham versão nova no brew
@@ -954,25 +1037,131 @@ selection_cancelled() {
 
 select_profile() {
     flow_node "Perfil de instalação"
+    local opts=()
+    if [[ -f "$MACENV_STATE_DIR/state" ]]; then
+        opts+=("Repetir última instalação — $(state_summary)")
+    fi
+    opts+=(
+        "Completo — tudo: terminal, dev, cloud, android, ios, apps"
+        "Terminal bonito — Ghostty, Starship, fontes, eza/fzf/zoxide/bat"
+        "Dev — Terminal bonito + git, Docker, Node, pyenv + apps"
+        "Mobile — Dev básico + Android + iOS (Flutter)"
+        "Personalizado — escolher categorias e itens"
+    )
     local sel
-    sel="$(gum_choose_tty --header "Escolha um perfil de instalação" \
-        "Completo — tudo: terminal, dev, cloud, android, ios, apps" \
-        "Terminal bonito — Ghostty, Starship, fontes, eza/fzf/zoxide/bat" \
-        "Dev — Terminal bonito + git, Docker, Node, pyenv + apps" \
-        "Mobile — Dev básico + Android + iOS (Flutter)" \
-        "Personalizado — escolher categorias")" || selection_cancelled
+    sel="$(gum_choose_tty --header "Escolha um perfil de instalação" "${opts[@]}")" || selection_cancelled
     case "$sel" in
+        Repetir*)
+            if ! load_selection_state; then
+                ui_error "Estado anterior inválido (~/.config/macenv/state) — escolha um perfil."
+                exit 1
+            fi
+            SELECTION_MODE="repeat"
+            PROFILE_LABEL="${PROFILE_LABEL} (repetida)"
+            ;;
         Completo*)  PROFILE_LABEL="Completo";  apply_categories terminal dev cloud android ios apps ;;
         Terminal*)  PROFILE_LABEL="Terminal bonito"; apply_categories terminal ;;
         Dev*)       PROFILE_LABEL="Dev";       apply_categories terminal dev apps ;;
         Mobile*)    PROFILE_LABEL="Mobile";    apply_categories terminal dev android ios ;;
         Personalizado*)
             PROFILE_LABEL="Personalizado"
+            SELECTION_MODE="custom"
             refine_categories
             ;;
         *) selection_cancelled ;;
     esac
     flow_done "Perfil: ${PROFILE_LABEL}"
+    return 0
+}
+
+# Personalizado: ajuste fino por item dentro das categorias escolhidas
+select_items_within() {
+    local rec id cat label def pkgs desc opt opts=() presel=""
+    for rec in "${ITEM_DB[@]}"; do
+        IFS='|' read -r id cat label def pkgs desc <<< "$rec"
+        category_selected "$cat" || continue
+        opt="${label} — ${desc//,/ ·}"
+        opts+=("$opt")
+        if item_selected "$id"; then
+            if [[ -n "$presel" ]]; then
+                presel="${presel},${opt}"
+            else
+                presel="$opt"
+            fi
+        fi
+    done
+    if [[ ${#opts[@]} -eq 0 ]]; then
+        return 0
+    fi
+    flow_node "Itens (espaço marca, enter confirma)"
+    local sel line lbl iid
+    sel="$(gum_choose_tty --no-limit --height 18 --header "Ajuste os itens da instalação" \
+        --selected "$presel" "${opts[@]}")" || selection_cancelled
+    if [[ -z "$sel" ]]; then
+        selection_cancelled
+    fi
+    SELECTED_ITEMS=""
+    while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
+        lbl="${line%% — *}"
+        if iid="$(item_id_by_label "$lbl")"; then
+            select_item "$iid"
+        fi
+    done <<< "$sel"
+    flow_done "Itens: $(count_words "$SELECTED_ITEMS") selecionados"
+    return 0
+}
+
+# Deriva TERMINAL_CHOICE/PROMPT_ACTIVE da seleção por item (modo Personalizado)
+derive_choices_from_items() {
+    TERMINAL_CHOICE=""
+    if item_selected ghostty && item_selected iterm2; then
+        TERMINAL_CHOICE="ambos"
+    elif item_selected ghostty; then
+        TERMINAL_CHOICE="ghostty"
+    elif item_selected iterm2; then
+        TERMINAL_CHOICE="iterm2"
+    fi
+    PROMPT_ACTIVE=""
+    if item_selected starship && item_selected p10k; then
+        if [[ -n "$GUM" ]]; then
+            flow_node "Prompt do shell"
+            local sel
+            sel="$(gum_choose_tty --header "Os dois prompts serão instalados — qual ativar no zsh?" \
+                "Starship" "Powerlevel10k")" || selection_cancelled
+            case "$sel" in
+                Starship*) PROMPT_ACTIVE="starship" ;;
+                *)         PROMPT_ACTIVE="p10k" ;;
+            esac
+            flow_done "Prompt ativo: ${sel}"
+        else
+            PROMPT_ACTIVE="starship"
+            ui_warn "Dois prompts selecionados sem seletor — ativando Starship."
+        fi
+    elif item_selected starship; then
+        PROMPT_ACTIVE="starship"
+    elif item_selected p10k; then
+        PROMPT_ACTIVE="p10k"
+    fi
+    if [[ "$PROMPT_ACTIVE" == "p10k" ]] && ! item_selected font-meslo && ! item_selected font-jetbrains; then
+        select_item font-meslo
+    fi
+    if [[ "$PROMPT_ACTIVE" == "starship" ]]; then
+        select_starship_preset
+    fi
+    return 0
+}
+
+select_starship_preset() {
+    [[ -n "$GUM" ]] || return 0   # sem seletor: mantém o preset padrão
+    local preset
+    preset="$(gum_choose_tty --header "Estilo do prompt Starship" \
+        "Tokyo Night — cápsulas arredondadas, azul/cinza (recomendado)" \
+        "Catppuccin Powerline — segmentos pastel")" || selection_cancelled
+    case "$preset" in
+        Tokyo*)      STARSHIP_PRESET="tokyo-night" ;;
+        Catppuccin*) STARSHIP_PRESET="catppuccin-powerline" ;;
+    esac
     return 0
 }
 
@@ -1033,14 +1222,7 @@ select_prompt_choice() {
             PROMPT_ACTIVE="starship"
             select_item starship
             deselect_item p10k
-            local preset
-            preset="$(gum_choose_tty --header "Estilo do prompt Starship" \
-                "Tokyo Night — cápsulas arredondadas, azul/cinza (recomendado)" \
-                "Catppuccin Powerline — segmentos pastel")" || selection_cancelled
-            case "$preset" in
-                Tokyo*)      STARSHIP_PRESET="tokyo-night" ;;
-                Catppuccin*) STARSHIP_PRESET="catppuccin-powerline" ;;
-            esac
+            select_starship_preset
             ;;
         Powerlevel10k*)
             PROMPT_ACTIVE="p10k"
@@ -1059,8 +1241,18 @@ select_prompt_choice() {
 
 interactive_selection() {
     select_profile
-    select_terminal_choice
-    select_prompt_choice
+    case "$SELECTION_MODE" in
+        repeat)
+            ;;   # tudo carregado do estado salvo
+        custom)
+            select_items_within
+            derive_choices_from_items
+            ;;
+        *)
+            select_terminal_choice
+            select_prompt_choice
+            ;;
+    esac
     return 0
 }
 
@@ -1071,9 +1263,18 @@ resolve_selection() {
         return 0
     fi
     if [[ -n "$PROFILE" ]]; then
+        if [[ "$PROFILE" == "last" ]]; then
+            if ! load_selection_state; then
+                ui_error "Nenhuma instalação anterior salva (~/.config/macenv/state)."
+                exit 1
+            fi
+            SELECTION_MODE="repeat"
+            PROFILE_LABEL="${PROFILE_LABEL} (repetida)"
+            return 0
+        fi
         local cats
         if ! cats="$(preset_categories "$PROFILE")"; then
-            ui_error "Perfil desconhecido: ${PROFILE} (use completo|terminal|dev|mobile)"
+            ui_error "Perfil desconhecido: ${PROFILE} (use completo|terminal|dev|mobile|last)"
             exit 1
         fi
         PROFILE_LABEL="$PROFILE"
@@ -1694,6 +1895,7 @@ run_item() {
     fi
     local elapsed=$((SECONDS - start))
     ITEMS_DONE=$((ITEMS_DONE + 1))
+    ITEM_TIMES="$ITEM_TIMES ${id}:${elapsed}"
     case "$rc" in
         0)
             RESULT_OK="$RESULT_OK $id"
@@ -2318,6 +2520,44 @@ PYEOF
     return 0
 }
 
+# Fonte Nerd no perfil padrão do iTerm2 — via defaults export/import (respeita o
+# cfprefsd). iTerm2 aberto ou sem plist: cai para Dynamic Profile (hot-load).
+configure_iterm2_font() {
+    item_selected iterm2 || return 0
+    local psfont="JetBrainsMonoNFM-Regular 14"
+    if ! item_selected font-jetbrains && item_selected font-meslo; then
+        psfont="MesloLGSNerdFontMono-Regular 14"
+    fi
+    local tmp current
+    tmp="$(mktempfile)"
+    if ! pgrep -xq iTerm2 && defaults export com.googlecode.iterm2 "$tmp" 2>/dev/null; then
+        if current="$(/usr/libexec/PlistBuddy -c 'Print :"New Bookmarks":0:"Normal Font"' "$tmp" 2>/dev/null)"; then
+            case "$current" in
+                *NFM*|*NerdFont*|*"Nerd Font"*)
+                    echo -e "${GUT}${MUTED}◇ iTerm2: fonte Nerd já configurada — preservada${NC}"
+                    return 0
+                    ;;
+            esac
+            if /usr/libexec/PlistBuddy -c "Set :\"New Bookmarks\":0:\"Normal Font\" ${psfont}" "$tmp" 2>/dev/null \
+                && defaults import com.googlecode.iterm2 "$tmp" 2>/dev/null; then
+                ui_success "iTerm2: fonte do perfil padrão definida (${psfont%% *})"
+                return 0
+            fi
+        fi
+    fi
+    local dyn="$HOME/Library/Application Support/iTerm2/DynamicProfiles/macenv.json"
+    if [[ -f "$dyn" ]]; then
+        echo -e "${GUT}${MUTED}◇ iTerm2: perfil dinâmico MacEnv já existe — preservado${NC}"
+        return 0
+    fi
+    mkdir -p "$(dirname "$dyn")"
+    cat > "$dyn" <<EOF
+{ "Profiles": [ { "Name": "MacEnv", "Guid": "macenv-nerd-font", "Normal Font": "${psfont}" } ] }
+EOF
+    ui_success "iTerm2: perfil dinâmico 'MacEnv' criado com fonte Nerd (Profiles → MacEnv)"
+    return 0
+}
+
 setup_p10k() {
     if [[ -f "$HOME/.p10k.zsh" ]]; then
         ui_success "~/.p10k.zsh já existe — configuração mantida"
@@ -2330,6 +2570,47 @@ setup_p10k() {
 # -----------------------------------------------------------------------------
 # Relatório final
 # -----------------------------------------------------------------------------
+item_time() {
+    local e
+    for e in $ITEM_TIMES; do
+        if [[ "${e%%:*}" == "$1" ]]; then
+            echo "${e#*:}"
+            return 0
+        fi
+    done
+    echo 0
+}
+
+# Espelha o resultado em ~/.config/macenv/last-run.log (texto puro, com tempos)
+write_run_log() {
+    local total="$1"
+    mkdir -p "$MACENV_STATE_DIR" 2>/dev/null || return 0
+    local f="$MACENV_STATE_DIR/last-run.log" id
+    {
+        echo "mac_env_install.sh — $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "perfil: ${PROFILE_LABEL} · duração: $(format_duration "$total")"
+        echo ""
+        for id in $RESULT_OK; do
+            echo "instalado    $(item_label "$id") ($(item_time "$id")s)"
+        done
+        for id in $RESULT_UP; do
+            echo "atualizado   $(item_label "$id") ($(item_time "$id")s)"
+        done
+        for id in $RESULT_SKIP; do
+            echo "já presente  $(item_label "$id")"
+        done
+        for id in $RESULT_FAIL; do
+            echo "FALHOU       $(item_label "$id")"
+        done
+        if [[ -n "$PENDING_UPDATES" && "$DO_UPGRADE" != "1" ]]; then
+            echo ""
+            echo "atualizações pendentes — rode com --upgrade-only"
+        fi
+    } > "$f" 2>/dev/null || return 0
+    ui_info "Relatório salvo em ~/.config/macenv/last-run.log"
+    return 0
+}
+
 format_duration() {
     local s="$1"
     if [[ $s -ge 60 ]]; then
@@ -2426,6 +2707,8 @@ print_final_report() {
             echo -e "${INFO}${card}${NC}"
         fi
     fi
+
+    write_run_log "$total_secs"
 
     if [[ "$n_fail" -gt 0 ]]; then
         return 1
@@ -2699,6 +2982,7 @@ main() {
         fi
     fi
 
+    save_selection_state
     install_xcode_clt
 
     ui_stage "Base"
@@ -2727,6 +3011,7 @@ main() {
         if item_selected ghostty; then
             write_ghostty_config
         fi
+        configure_iterm2_font
         configure_editor_terminal_font
     fi
 

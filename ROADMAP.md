@@ -42,10 +42,12 @@ python3 -c "import pty; pty.spawn(['/bin/bash','mac_env_install.sh','--dry-run',
 
 ### P2 — qualidade de vida
 
-5. **Seleção por item no Personalizado** — após escolher categorias, `gum choose --no-limit` dos itens (usando as descrições do ITEM_DB), permitindo desmarcar itens default e incluir opcionais (iTerm2, Meslo, Android Studio) sem editar flags.
-6. **Perfil persistente** — salvar a última seleção em `~/.config/macenv/profile` e oferecer "Repetir última instalação" no seletor; base para sincronizar 2+ máquinas.
-7. **Log da execução** — espelhar o relatório final em `~/.config/macenv/last-run.log` (com timestamps por item) para debug pós-morte.
-8. **Config automática do iTerm2** — quando selecionado, definir a fonte via `defaults write com.googlecode.iterm2` ou Dynamic Profile (hoje é passo manual no relatório).
+5. ~~**Seleção por item no Personalizado**~~ — **feito na v3.10.0** (multi-select com descrições, defaults pré-marcados; terminal/prompt derivados da seleção).
+6. ~~**Perfil persistente**~~ — **feito na v3.10.0** (`~/.config/macenv/state`, "Repetir última instalação" no seletor, `--profile last` headless, filtro de itens obsoletos).
+7. ~~**Log da execução**~~ — **feito na v3.10.0** (`~/.config/macenv/last-run.log` com tempos por item).
+8. ~~**Config automática do iTerm2**~~ — **feito na v3.10.0** (export/PlistBuddy/import com app fechado; Dynamic Profile "MacEnv" como fallback).
+
+**P2 concluído por completo.** Próxima fronteira: P3.
 
 ### P3 — apostas maiores
 
