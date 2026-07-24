@@ -440,7 +440,7 @@ print_installer_banner() {
     blackhole_spin 10
     echo ""
     shimmer_line "               ◆  M A C · E N V  ◆"
-    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.7.1${NC}"
+    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.7.2${NC}"
     echo ""
     if [[ -t 1 ]]; then
         tput cnorm 2>/dev/null || true
@@ -2163,15 +2163,19 @@ EOF
 # ghostty config — gerado por mac_env_install.sh (v3)
 font-family = ${font}
 font-size = 14
-cursor-color = #f5b000
+
+# Não use #f5b000: ele é interpretado pelo shader (canal do token mode)
+cursor-color = #f5a000
+
 window-padding-x = 8
 window-padding-y = 8
+
 background = #0e0e16
 foreground = #e6e6f0
 
 # Fundo translúcido com blur (estilo iTerm2)
 background-opacity = 0.85
-background-blur-radius = 20
+background-blur = 20
 EOF
     if [[ "$want_shader" == "1" ]]; then
         cat >> "$tmp" <<EOF

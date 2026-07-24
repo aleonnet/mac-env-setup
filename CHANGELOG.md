@@ -2,6 +2,11 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [3.7.2] - 2026-07-23
+
+### Fixed
+- Config gerada do Ghostty: cursor muda de `#f5b000` para `#f5a000` — o âmbar exato da assinatura é o canal de sinal do token mode do shader blackhole e não pode ser usado como cor estática do cursor. Também troca `background-blur-radius` pelo nome atual da opção, `background-blur`.
+
 ## [3.7.1] - 2026-07-23
 
 ### Changed
