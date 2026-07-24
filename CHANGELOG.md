@@ -2,6 +2,11 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [4.2.0] - 2026-07-24
+
+### Added
+- **Terminal da Apple preservado**: o `.zshrc` gerado detecta `TERM_PROGRAM=Apple_Terminal` e mantém visual padrão nele — prompt zsh clássico (sem Starship/p10k, que dependem de Nerd Font) e `eza` sem `--icons`; autosuggestions, highlight, fzf, zoxide e PATHs continuam valendo em todo lugar. Ghostty, iTerm2 e terminais de editores seguem com a experiência completa.
+
 ## [4.1.1] - 2026-07-24
 
 ### Fixed

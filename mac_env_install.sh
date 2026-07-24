@@ -13,7 +13,7 @@
 # =============================================================================
 set -euo pipefail
 
-MACENV_VERSION="4.1.1"
+MACENV_VERSION="4.2.0"
 MACENV_RAW_URL="https://raw.githubusercontent.com/aleonnet/mac-env-setup/main/mac_env_install.sh"
 
 # -----------------------------------------------------------------------------
@@ -2027,11 +2027,22 @@ zshrc_block_header() {
 EOF
 }
 
+# Guarda de terminal: o Terminal da Apple fica com visual padrão (sem glifos
+# Nerd Font) — prompt/ícones só em Ghostty, iTerm2, editores etc.
+zshrc_block_term_guard() {
+    cat <<'EOF'
+
+# Terminal da Apple não tem Nerd Font: visual padrão lá, completo nos demais
+MACENV_PLAIN_TERM=0
+[[ "${TERM_PROGRAM:-}" == "Apple_Terminal" ]] && MACENV_PLAIN_TERM=1
+EOF
+}
+
 zshrc_block_p10k_instant() {
     cat <<'EOF'
 
 # Powerlevel10k Instant Prompt
-if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+if [[ "$MACENV_PLAIN_TERM" == "0" && -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 EOF
@@ -2185,11 +2196,19 @@ zshrc_block_eza() {
     cat <<'EOF'
 
 # eza (ls com ícones) — para o ls original: \ls ou command ls
+# No Terminal da Apple: eza sem ícones (glifos Nerd viram "?")
 if command -v eza &>/dev/null; then
-  alias ls='eza --icons'
-  alias ll='eza -l --icons'
-  alias la='eza -la --icons'
-  alias lt='eza --tree --icons'
+  if [[ "$MACENV_PLAIN_TERM" == "1" ]]; then
+    alias ls='eza'
+    alias ll='eza -l'
+    alias la='eza -la'
+    alias lt='eza --tree'
+  else
+    alias ls='eza --icons'
+    alias ll='eza -l --icons'
+    alias la='eza -la --icons'
+    alias lt='eza --tree --icons'
+  fi
 fi
 EOF
 }
@@ -2216,12 +2235,17 @@ zshrc_block_p10k_source() {
     cat <<'EOF'
 
 # Powerlevel10k — execute 'p10k configure' para personalizar
-if [[ -f /opt/homebrew/share/powerlevel10k/powerlevel10k.zsh-theme ]]; then
-  source /opt/homebrew/share/powerlevel10k/powerlevel10k.zsh-theme
-elif [[ -f /usr/local/share/powerlevel10k/powerlevel10k.zsh-theme ]]; then
-  source /usr/local/share/powerlevel10k/powerlevel10k.zsh-theme
+# Terminal da Apple fica com o prompt zsh clássico, limpo e sem glifos
+if [[ "$MACENV_PLAIN_TERM" == "1" ]]; then
+  PROMPT='%F{green}%n@%m%f %F{blue}%1~%f %# '
+else
+  if [[ -f /opt/homebrew/share/powerlevel10k/powerlevel10k.zsh-theme ]]; then
+    source /opt/homebrew/share/powerlevel10k/powerlevel10k.zsh-theme
+  elif [[ -f /usr/local/share/powerlevel10k/powerlevel10k.zsh-theme ]]; then
+    source /usr/local/share/powerlevel10k/powerlevel10k.zsh-theme
+  fi
+  [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 fi
-[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 EOF
 }
 
@@ -2229,7 +2253,10 @@ zshrc_block_starship() {
     cat <<'EOF'
 
 # Starship — config em ~/.config/starship.toml (deve ser a última linha)
-if command -v starship &>/dev/null; then
+# Terminal da Apple fica com o prompt zsh clássico, limpo e sem glifos
+if [[ "$MACENV_PLAIN_TERM" == "1" ]]; then
+  PROMPT='%F{green}%n@%m%f %F{blue}%1~%f %# '
+elif command -v starship &>/dev/null; then
   eval "$(starship init zsh)"
 fi
 EOF
@@ -2305,6 +2332,7 @@ write_zshrc() {
     local tmp
     tmp="$(mktempfile)"
     zshrc_block_header >> "$tmp"
+    zshrc_block_term_guard >> "$tmp"
     if [[ "$PROMPT_ACTIVE" == "p10k" ]]; then
         zshrc_block_p10k_instant >> "$tmp"
     fi
