@@ -51,7 +51,9 @@ python3 -c "import pty; pty.spawn(['/bin/bash','mac_env_install.sh','--dry-run',
 
 ### P3 — apostas maiores
 
-9. **Companion TUI em Bubble Tea + huh v2** — **aprovado, próximo passo (v4.0.0)**: binário Go universal baixado com checksum como o gum, só para a fase de seleção (busca fuzzy, painel de descrição, tema Event Horizon em Lipgloss, blackhole animado); pipeline de release no GitHub Actions; bash continua o motor e o fluxo gum atual vira fallback.
+9. ~~**Companion TUI em Bubble Tea**~~ — **feito na v4.0.0** (`tui/` em Go: busca, hotkeys de perfil, painel de descrição, shimmer Event Horizon; release `tui-v0.1.0` com binário universal + checksums; `release-tui.yml` para tags futuras; fluxo gum permanece como fallback permanente).
+
+**P3 concluído por completo — roadmap original 100% entregue.**
 10. ~~**`--self-update`**~~ — **feito na v3.11.0** (SHA-256 + validação de sintaxe + backup `.bak`; constante `MACENV_VERSION`).
 11. ~~**Xcode completo via `mas`**~~ — **feito na v3.11.0** (item opcional na categoria ios; falha graciosa sem login).
 12. ~~**Rollback**~~ — **feito na v3.11.0** (`--restore-zshrc` e `--remove a,b,c` com plano explícito e confirmação).

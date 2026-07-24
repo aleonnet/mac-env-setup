@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-Single-file project: `mac_env_install.sh` — a category-based macOS dev-environment installer in Bash with an interactive selector (gum) and the "Event Horizon" amber art direction. All comments and console output are Brazilian Portuguese — keep new comments and UI strings in Portuguese.
+`mac_env_install.sh` — a category-based macOS dev-environment installer in Bash with the "Event Horizon" amber art direction, plus `tui/` — a Go (Bubble Tea) companion selector. All comments and console output are Brazilian Portuguese — keep new comments and UI strings in Portuguese.
+
+**TUI companion** (`tui/main.go`): full-screen item selector downloaded at runtime like gum (GitHub Release `tui-vX.Y.Z`, SHA-256 verified, never installed; pinned in `MACENV_TUI_VERSION`). Protocol: bash writes a catalog file (`C|id|label`, `I|id|cat|label|sel|desc`, `P|name|ids`), the TUI draws on `/dev/tty` and prints `ITEMS id1 id2...` to stdout (exit 130 = cancelled → `selection_cancelled`; any other failure → gum flow fallback in `tui_selection`). To ship a TUI change: edit `tui/main.go`, `cd tui && go vet ./... && go build`, test under a pty, then `git tag tui-vX.Y.Z && git push --tags` (release-tui.yml builds/publishes) and bump `MACENV_TUI_VERSION` in the script. The gum flow must remain fully functional forever — it is the permanent fallback.
 
 Distributed for remote execution from the `main` branch:
 

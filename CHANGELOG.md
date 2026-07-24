@@ -2,6 +2,13 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [4.0.0] - 2026-07-24
+
+### Added — Fase 4 do roadmap: companion TUI (Bubble Tea)
+- **`macenv-tui`** (novo diretório `tui/`, Go + Bubble Tea + Lipgloss): seletor de itens em tela cheia com tema Event Horizon — anel com shimmer animado, busca (`/`) sobre rótulo+descrição, perfis por hotkey (1-4), toggle por categoria (`a`), painel de descrição ao vivo e abertura pré-carregada com a última instalação salva. `Enter` confirma, `q`/`Esc` cancela (exit 130).
+- **Distribuição como o gum**: binário universal (arm64+x86_64) publicado em GitHub Release (`tui-vX.Y.Z`), baixado em runtime para diretório temporário com verificação SHA-256, nunca instalado; versão pinada em `MACENV_TUI_VERSION`. Workflow `release-tui.yml` builda e publica a cada tag; CI ganha job `go vet + build`.
+- **Fallback permanente**: qualquer indisponibilidade (offline, checksum, `MACENV_USE_TUI=0`, rc inesperado) cai no fluxo gum da v3.11 sem perda de função; headless (`--profile`, `--categories`, CI) nunca toca o TUI. Após a seleção, o bash segue idêntico (derive de terminal/prompt, preset via gum, manifesto, engine).
+
 ## [3.11.0] - 2026-07-24
 
 ### Added — P3 fases 1-3 (self-update, rollback, Xcode)

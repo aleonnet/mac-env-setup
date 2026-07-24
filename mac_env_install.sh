@@ -13,8 +13,9 @@
 # =============================================================================
 set -euo pipefail
 
-MACENV_VERSION="3.11.0"
+MACENV_VERSION="4.0.0"
 MACENV_RAW_URL="https://raw.githubusercontent.com/aleonnet/mac-env-setup/main/mac_env_install.sh"
+MACENV_TUI_VERSION="0.1.0"   # release tui-vX.Y.Z pinado (binário + checksums)
 
 # -----------------------------------------------------------------------------
 # Cores — paleta "Event Horizon" (âmbar #f5b000, assinatura do ghostty-blackhole)
@@ -1024,6 +1025,150 @@ parse_args() {
 # -----------------------------------------------------------------------------
 # Seleção — headless (flags) ou interativa (gum + /dev/tty)
 # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Seletor TUI (macenv-tui, Bubble Tea) — baixado como o gum: temp + SHA-256,
+# nunca instalado. Qualquer falha cai no fluxo gum (fallback permanente).
+# -----------------------------------------------------------------------------
+TUI_BIN=""
+TUI_REASON=""
+
+bootstrap_tui_temp() {
+    TUI_BIN=""
+    TUI_REASON=""
+    case "${MACENV_USE_TUI:-auto}" in
+        0|false|False|FALSE|off|OFF|no|NO)
+            TUI_REASON="desativado via MACENV_USE_TUI"
+            return 1
+            ;;
+    esac
+    if ! command -v tar &>/dev/null; then
+        TUI_REASON="tar ausente"
+        return 1
+    fi
+    local base="https://github.com/aleonnet/mac-env-setup/releases/download/tui-v${MACENV_TUI_VERSION}"
+    local asset="macenv-tui_${MACENV_TUI_VERSION}_Darwin_universal.tar.gz"
+    local dir
+    dir="$(mktemp -d)"
+    TMPFILES+=("$dir")
+    if ! download_file "$base/$asset" "$dir/$asset"; then
+        TUI_REASON="download falhou"
+        return 1
+    fi
+    if ! download_file "$base/checksums.txt" "$dir/checksums.txt"; then
+        TUI_REASON="checksums indisponíveis"
+        return 1
+    fi
+    if ! (cd "$dir" && verify_sha256sum_file "checksums.txt"); then
+        TUI_REASON="checksum não confere"
+        return 1
+    fi
+    if ! tar -xzf "$dir/$asset" -C "$dir" 2>/dev/null; then
+        TUI_REASON="extração falhou"
+        return 1
+    fi
+    chmod +x "$dir/macenv-tui" 2>/dev/null || true
+    if [[ ! -x "$dir/macenv-tui" ]]; then
+        TUI_REASON="binário inválido"
+        return 1
+    fi
+    TUI_BIN="$dir/macenv-tui"
+    return 0
+}
+
+# Itens de um perfil, sem tocar na seleção corrente (subshell)
+profile_items() {
+    (
+        # shellcheck disable=SC2046
+        apply_categories $(preset_categories "$1") >/dev/null 2>&1
+        echo "$SELECTED_ITEMS"
+    )
+}
+
+# Escreve o catálogo no protocolo do macenv-tui e roda o seletor.
+# Retorno: 0 = seleção feita; 1 = indisponível (fallback gum); sai 130 se cancelado.
+tui_selection() {
+    if ! bootstrap_tui_temp; then
+        ui_info "Seletor TUI indisponível (${TUI_REASON}) — usando o fluxo padrão."
+        return 1
+    fi
+    # seleção inicial: última instalação salva, senão defaults do perfil dev
+    apply_categories terminal dev apps
+    if [[ -f "$MACENV_STATE_DIR/state" ]]; then
+        local saved filtered="" it
+        saved="$(grep -m1 '^SELECTED_ITEMS=' "$MACENV_STATE_DIR/state" | cut -d= -f2- || true)"
+        for it in $saved; do
+            if item_exists "$it"; then
+                filtered="$filtered $it"
+            fi
+        done
+        if [[ -n "${filtered// /}" ]]; then
+            SELECTED_ITEMS="$filtered"
+        fi
+    fi
+    local catfile rec id cat label def pkgs desc sel
+    catfile="$(mktempfile)"
+    for rec in "${CATEGORY_DB[@]}"; do
+        IFS='|' read -r id label desc <<< "$rec"
+        echo "C|${id}|${label}" >> "$catfile"
+    done
+    for rec in "${ITEM_DB[@]}"; do
+        IFS='|' read -r id cat label def pkgs desc <<< "$rec"
+        sel=0
+        if item_selected "$id"; then
+            sel=1
+        fi
+        echo "I|${id}|${cat}|${label}|${sel}|${desc}" >> "$catfile"
+    done
+    local pname
+    for pname in Completo Terminal Dev Mobile; do
+        local plower
+        plower="$(echo "$pname" | tr '[:upper:]' '[:lower:]')"
+        echo "P|${pname}|$(profile_items "$plower")" >> "$catfile"
+    done
+
+    local out rc=0
+    out="$("$TUI_BIN" "$catfile")" || rc=$?
+    if [[ $rc -eq 130 ]]; then
+        selection_cancelled
+    fi
+    if [[ $rc -ne 0 ]]; then
+        ui_warn "Seletor TUI falhou (rc=${rc}) — usando o fluxo padrão."
+        return 1
+    fi
+    local line ids
+    if ! line="$(printf '%s\n' "$out" | grep -m1 '^ITEMS ')"; then
+        return 1
+    fi
+    ids="${line#ITEMS }"
+    if [[ -z "${ids// /}" ]]; then
+        selection_cancelled
+    fi
+    SELECTED_ITEMS=""
+    local it
+    for it in $ids; do
+        if item_exists "$it"; then
+            select_item "$it"
+        fi
+    done
+    SELECTED_CATEGORIES=""
+    local irec iid icat ilabel idef ipkgs idesc
+    for rec in "${CATEGORY_DB[@]}"; do
+        IFS='|' read -r id label desc <<< "$rec"
+        for irec in "${ITEM_DB[@]}"; do
+            IFS='|' read -r iid icat ilabel idef ipkgs idesc <<< "$irec"
+            if [[ "$icat" == "$id" ]] && item_selected "$iid"; then
+                SELECTED_CATEGORIES="$SELECTED_CATEGORIES $id"
+                break
+            fi
+        done
+    done
+    PROFILE_LABEL="Personalizado (TUI)"
+    SELECTION_MODE="custom"
+    flow_done "Seleção via TUI: $(count_words "$SELECTED_ITEMS") itens"
+    derive_choices_from_items
+    return 0
+}
+
 can_prompt() {
     [[ -n "$GUM" ]] || return 1
     if [[ "$ASSUME_YES" == "1" || "$ALL" == "1" ]]; then
@@ -1312,6 +1457,9 @@ resolve_selection() {
         return 0
     fi
     if can_prompt; then
+        if tui_selection; then
+            return 0
+        fi
         interactive_selection
         return 0
     fi

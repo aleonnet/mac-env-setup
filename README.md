@@ -12,7 +12,7 @@ Instalador de ambiente de desenvolvimento para macOS em um único script Bash �
 curl -fsSL https://raw.githubusercontent.com/aleonnet/mac-env-setup/main/mac_env_install.sh | bash
 ```
 
-Em terminal interativo, abre o **seletor de perfis** — com "Repetir última instalação" quando houver uma seleção salva, e ajuste **item a item** no modo Personalizado. Sem TTY (CI etc.), usa o perfil `terminal`. Cada execução salva a seleção em `~/.config/macenv/state` e o relatório com tempos em `~/.config/macenv/last-run.log`.
+Em terminal interativo, abre o **seletor TUI** (`macenv-tui`, Bubble Tea — busca com `/`, perfis nas teclas 1-4, `a` marca a categoria, painel de descrição; baixado em runtime com SHA-256, nunca instalado). Se o TUI estiver indisponível (offline, `MACENV_USE_TUI=0`), cai no fluxo gum: seletor de perfis com "Repetir última instalação" e ajuste item a item no Personalizado. Sem TTY (CI etc.), usa o perfil `terminal`. Cada execução salva a seleção em `~/.config/macenv/state` e o relatório com tempos em `~/.config/macenv/last-run.log`.
 
 ### Headless / sem interação
 
@@ -67,7 +67,7 @@ Veja tudo com `bash mac_env_install.sh --list`.
 | `--list` | lista categorias/itens e sai |
 | `--verbose`, `-v` | mostra a saída completa de cada passo |
 
-Variáveis de ambiente: `MACENV_USE_GUM` (`auto`/`1`/`0`), `MACENV_GUM_VERSION` (padrão `0.17.0`), `NO_COLOR`.
+Variáveis de ambiente: `MACENV_USE_GUM` (`auto`/`1`/`0`), `MACENV_GUM_VERSION` (padrão `0.17.0`), `MACENV_USE_TUI` (`auto`/`0` — desativa o seletor Bubble Tea), `NO_COLOR`.
 
 ## Configurações geradas (só quando a categoria `terminal` é selecionada)
 

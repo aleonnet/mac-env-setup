@@ -1,0 +1,38 @@
+name: Release TUI
+
+on:
+  push:
+    tags: ["tui-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: build universal + release
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache-dependency-path: tui/go.sum
+      - name: Build universal (arm64 + x86_64)
+        run: |
+          set -e
+          VER="${GITHUB_REF_NAME#tui-v}"
+          cd tui
+          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o macenv-tui-arm64 .
+          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o macenv-tui-amd64 .
+          lipo -create -output macenv-tui macenv-tui-arm64 macenv-tui-amd64
+          tar -czf "macenv-tui_${VER}_Darwin_universal.tar.gz" macenv-tui
+          shasum -a 256 "macenv-tui_${VER}_Darwin_universal.tar.gz" > checksums.txt
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER="${GITHUB_REF_NAME#tui-v}"
+          gh release create "$GITHUB_REF_NAME" \
+            --title "macenv-tui v${VER}" \
+            --notes "Companion TUI do mac_env_install.sh (binário universal, baixado em runtime com SHA-256)." \
+            "tui/macenv-tui_${VER}_Darwin_universal.tar.gz" "tui/checksums.txt"
