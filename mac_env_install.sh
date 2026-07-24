@@ -15,7 +15,7 @@ set -euo pipefail
 
 MACENV_VERSION="4.0.0"
 MACENV_RAW_URL="https://raw.githubusercontent.com/aleonnet/mac-env-setup/main/mac_env_install.sh"
-MACENV_TUI_VERSION="0.1.0"   # release tui-vX.Y.Z pinado (binário + checksums)
+MACENV_TUI_VERSION="0.1.1"   # release tui-vX.Y.Z pinado (binário + checksums)
 
 # -----------------------------------------------------------------------------
 # Cores — paleta "Event Horizon" (âmbar #f5b000, assinatura do ghostty-blackhole)
