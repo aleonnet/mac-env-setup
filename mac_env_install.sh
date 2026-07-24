@@ -13,7 +13,7 @@
 # =============================================================================
 set -euo pipefail
 
-MACENV_VERSION="4.0.0"
+MACENV_VERSION="4.0.1"
 MACENV_RAW_URL="https://raw.githubusercontent.com/aleonnet/mac-env-setup/main/mac_env_install.sh"
 MACENV_TUI_VERSION="0.1.1"   # release tui-vX.Y.Z pinado (binário + checksums)
 
@@ -959,6 +959,7 @@ Opções:
   --upgrade           Atualiza itens já instalados que tenham versão nova no brew
   --upgrade-only      Só atualiza o que está instalado e sai (sem instalar nada novo)
   --doctor            Diagnóstico do ambiente (nada é instalado ou alterado)
+  --tui               Usa o seletor alternativo em tela cheia (busca, hotkeys)
   --self-update       Atualiza este script para a versão do branch main
   --restore-zshrc     Restaura o backup mais recente do ~/.zshrc e sai
   --remove a,b,c      Remove itens do catálogo (com confirmação; headless exige --yes)
@@ -1004,6 +1005,7 @@ parse_args() {
             --upgrade)      UPGRADE_FLAG=1 ;;
             --upgrade-only) UPGRADE_ONLY=1 ;;
             --doctor)       DOCTOR=1 ;;
+            --tui)          MACENV_USE_TUI=1 ;;
             --self-update)  SELF_UPDATE=1 ;;
             --restore-zshrc) RESTORE_ZSHRC=1 ;;
             --remove)       REMOVE_ARG="${2:-}"; shift ;;
@@ -1032,12 +1034,14 @@ parse_args() {
 TUI_BIN=""
 TUI_REASON=""
 
+# O TUI é OPT-IN (--tui ou MACENV_USE_TUI=1): o fluxo gum é o padrão preferido.
 bootstrap_tui_temp() {
     TUI_BIN=""
     TUI_REASON=""
-    case "${MACENV_USE_TUI:-auto}" in
-        0|false|False|FALSE|off|OFF|no|NO)
-            TUI_REASON="desativado via MACENV_USE_TUI"
+    case "${MACENV_USE_TUI:-0}" in
+        1|true|True|TRUE|on|ON|yes|YES) ;;
+        *)
+            TUI_REASON="opt-in: use --tui ou MACENV_USE_TUI=1"
             return 1
             ;;
     esac
@@ -1088,7 +1092,10 @@ profile_items() {
 # Retorno: 0 = seleção feita; 1 = indisponível (fallback gum); sai 130 se cancelado.
 tui_selection() {
     if ! bootstrap_tui_temp; then
-        ui_info "Seletor TUI indisponível (${TUI_REASON}) — usando o fluxo padrão."
+        # silencioso quando é só o opt-in; barulhento quando o usuário pediu e falhou
+        if [[ "${MACENV_USE_TUI:-0}" != "0" ]]; then
+            ui_warn "Seletor TUI indisponível (${TUI_REASON}) — usando o fluxo padrão."
+        fi
         return 1
     fi
     # seleção inicial: última instalação salva, senão defaults do perfil dev

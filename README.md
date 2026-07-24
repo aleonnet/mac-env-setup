@@ -12,7 +12,7 @@ Instalador de ambiente de desenvolvimento para macOS em um único script Bash �
 curl -fsSL https://raw.githubusercontent.com/aleonnet/mac-env-setup/main/mac_env_install.sh | bash
 ```
 
-Em terminal interativo, abre o **seletor TUI** (`macenv-tui`, Bubble Tea — busca com `/`, perfis nas teclas 1-4, `a` marca a categoria, painel de descrição; baixado em runtime com SHA-256, nunca instalado). Se o TUI estiver indisponível (offline, `MACENV_USE_TUI=0`), cai no fluxo gum: seletor de perfis com "Repetir última instalação" e ajuste item a item no Personalizado. Sem TTY (CI etc.), usa o perfil `terminal`. Cada execução salva a seleção em `~/.config/macenv/state` e o relatório com tempos em `~/.config/macenv/last-run.log`.
+Em terminal interativo, abre o **seletor de perfis** (gum) — com "Repetir última instalação" quando houver seleção salva e ajuste **item a item** no modo Personalizado. Com `--tui` (ou `MACENV_USE_TUI=1`), usa o seletor alternativo em tela cheia (`macenv-tui`, Bubble Tea — busca com `/`, perfis nas teclas 1-4, painel de descrição; baixado em runtime com SHA-256, nunca instalado). Sem TTY (CI etc.), usa o perfil `terminal`. Cada execução salva a seleção em `~/.config/macenv/state` e o relatório com tempos em `~/.config/macenv/last-run.log`.
 
 ### Headless / sem interação
 
@@ -62,12 +62,13 @@ Veja tudo com `bash mac_env_install.sh --list`.
 | `--self-update` | atualiza o script local para a versão do `main` (SHA-256 + validação de sintaxe, backup `.bak`) |
 | `--restore-zshrc` | restaura o backup mais recente do `~/.zshrc` (headless exige `--yes`) |
 | `--remove a,b,c` | remove itens do catálogo com plano explícito e confirmação (avisa quando apaga apps inteiros) |
+| `--tui` | seletor alternativo em tela cheia (busca, hotkeys de perfil, painel de descrição) |
 | `--yes`, `-y` | não pergunta nada; perfil padrão `terminal` |
 | `--dry-run` | mostra o plano e sai sem tocar no sistema |
 | `--list` | lista categorias/itens e sai |
 | `--verbose`, `-v` | mostra a saída completa de cada passo |
 
-Variáveis de ambiente: `MACENV_USE_GUM` (`auto`/`1`/`0`), `MACENV_GUM_VERSION` (padrão `0.17.0`), `MACENV_USE_TUI` (`auto`/`0` — desativa o seletor Bubble Tea), `NO_COLOR`.
+Variáveis de ambiente: `MACENV_USE_GUM` (`auto`/`1`/`0`), `MACENV_GUM_VERSION` (padrão `0.17.0`), `MACENV_USE_TUI` (`1` ativa o seletor Bubble Tea; padrão desativado), `NO_COLOR`.
 
 ## Configurações geradas (só quando a categoria `terminal` é selecionada)
 

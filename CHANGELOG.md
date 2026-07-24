@@ -2,6 +2,11 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [4.0.1] - 2026-07-24
+
+### Changed
+- **Seletor TUI vira opt-in** (`--tui` ou `MACENV_USE_TUI=1`): o fluxo gum (perfis + Personalizado item a item) volta a ser o padrão interativo — preferência de UX validada em uso real; o shader blackhole do Ghostty já compõe sobre o fluxo gum, então o visual "com shader" é nativo do padrão. TUI corrigido (truecolor, tui-v0.1.1) permanece disponível.
+
 ## [4.0.0] - 2026-07-24
 
 ### Added — Fase 4 do roadmap: companion TUI (Bubble Tea)
