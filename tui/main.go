@@ -18,6 +18,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
 
 // ── Paleta Event Horizon (idêntica ao instalador bash) ──────────────────────
@@ -390,6 +391,14 @@ func main() {
 		os.Exit(2)
 	}
 	defer tty.Close()
+
+	// O stdout é um pipe (o bash captura "ITEMS ..."), então o lipgloss
+	// detectaria "sem cores". Desenhamos no tty: força truecolor.
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	if os.Getenv("MACENV_TUI_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "debug perfil=%v amostra=%q\n",
+			lipgloss.ColorProfile(), stAmber.Render("X"))
+	}
 
 	m := model{cats: cats, items: items, profiles: profiles, sel: sel}
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithInput(tty), tea.WithOutput(tty))
