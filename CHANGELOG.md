@@ -2,6 +2,14 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [4.1.0] - 2026-07-24
+
+### Removed
+- **Companion TUI removido do repositório** (decisão de produto: o fluxo gum é o preferido e caminho opt-in não exercitado é passivo de manutenção). Nada foi perdido: código, workflow e integração completos estão preservados na tag `tui-v0.1.1` e nos releases `tui-v0.1.x` publicados. O repo volta a ser um projeto de arquivo único em Bash.
+
+### Added
+- **Busca no Personalizado**: a seleção por item agora usa `gum filter` — digite para filtrar por nome/descrição, `Tab` marca/desmarca, `Enter` confirma; defaults continuam pré-selecionados e o tema âmbar cobre indicador/matches/prefixos.
+
 ## [4.0.1] - 2026-07-24
 
 ### Changed

@@ -1,4 +1,3 @@
 .DS_Store
 *.log
 *.code-workspace
-tui/macenv-tui*

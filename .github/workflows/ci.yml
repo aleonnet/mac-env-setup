@@ -9,21 +9,6 @@ env:
   MACENV_USE_GUM: "0"   # sem download de gum em CI (rede/flake)
 
 jobs:
-  tui:
-    name: go vet + build (macenv-tui)
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.26"
-          cache-dependency-path: tui/go.sum
-      - name: Vet e build
-        run: |
-          cd tui
-          go vet ./...
-          go build -o /tmp/macenv-tui .
-
   test:
     name: bash 3.2 · shellcheck · dry-runs
     runs-on: macos-latest

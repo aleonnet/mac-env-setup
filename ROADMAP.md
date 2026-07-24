@@ -51,7 +51,7 @@ python3 -c "import pty; pty.spawn(['/bin/bash','mac_env_install.sh','--dry-run',
 
 ### P3 — apostas maiores
 
-9. ~~**Companion TUI em Bubble Tea**~~ — **feito na v4.0.0**, ajustado na v4.0.1: após uso real, o fluxo gum foi preferido e voltou a ser o padrão; o TUI (release `tui-v0.1.1`, truecolor) ficou **opt-in** via `--tui`/`MACENV_USE_TUI=1`. Lição registrada: shaders são camada do emulador (Ghostty) e já compõem sobre o fluxo gum — o valor do TUI era busca/tela única, não estética.
+9. ~~**Companion TUI em Bubble Tea**~~ — feito na v4.0.0, **removido na v4.1.0** após validação em uso real: o fluxo gum foi preferido, e o único valor diferencial do TUI (busca) foi absorvido pelo `gum filter` no Personalizado. Arquivo morto completo na tag `tui-v0.1.1` + releases publicados. Lições: shaders são camada do emulador (o blackhole do Ghostty já compõe sobre o gum); validar protótipo visual real antes de investimento pesado; caminho opt-in não exercitado é passivo, não ativo.
 
 **P3 concluído por completo — roadmap original 100% entregue.**
 10. ~~**`--self-update`**~~ — **feito na v3.11.0** (SHA-256 + validação de sintaxe + backup `.bak`; constante `MACENV_VERSION`).
