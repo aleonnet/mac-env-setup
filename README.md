@@ -64,7 +64,7 @@ Variáveis de ambiente: `MACENV_USE_GUM` (`auto`/`1`/`0`), `MACENV_GUM_VERSION` 
 
 ## Configurações geradas (só quando a categoria `terminal` é selecionada)
 
-- **`~/.zshrc`** — montado por blocos conforme a seleção (pyenv, JAVA_HOME, fzf, zoxide, eza, bat, plugins, prompt). Backup do anterior em `~/.zshrc.backup.<timestamp>` antes de **sobrescrever**.
+- **`~/.zshrc`** — montado por blocos conforme a seleção (pyenv, JAVA_HOME, fzf, zoxide, eza, bat, plugins, prompt). Backup do anterior em `~/.zshrc.backup.<timestamp>` antes de sobrescrever — e tudo que outras ferramentas tiverem anexado ao final do arquivo anterior é **migrado automaticamente** para a seção "Suas adições" do novo (com dedupe).
 - **`~/.config/starship.toml`** — preset oficial do Starship: `tokyo-night` (padrão) ou `catppuccin-powerline`, escolhido no seletor (fallback Event Horizon embutido quando sem rede); backup antes de sobrescrever. Escolher Powerlevel10k mantém seu `~/.p10k.zsh` intacto e instala a MesloLGS (fonte recomendada do p10k).
 - **`~/.config/ghostty/config`** — fonte Nerd Font, cursor âmbar e shader blackhole (quando selecionado); config nova é criada completa, config existente é preservada — no máximo o bloco `custom-shader` é **anexado** (com backup) se ainda não houver um.
 - **VS Code / Cursor** — `terminal.integrated.fontFamily` recebe a Nerd Font no `settings.json` de cada editor instalado (valor existente é preservado; backup antes de escrever).

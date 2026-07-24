@@ -2,6 +2,11 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [3.8.0] - 2026-07-23
+
+### Added
+- **Preservação automática de adições ao `.zshrc`** (P1 do roadmap): ao regenerar, tudo que estiver após o rodapé do arquivo anterior — onde instaladores externos anexam (Claude Code, bun, etc.) — migra para a seção "Suas adições" no arquivo novo. Dedupe de `export`/`alias`/`source`/`eval` contra o template e entre si; blocos multi-linha passam verbatim; round-trip estável entre execuções. `.zshrc` sem o marcador (não gerado por nós) mantém o comportamento anterior (só backup). Fecha a classe de regressão que derrubou bun, Claude Code e Flutter do PATH nesta série.
+
 ## [3.7.2] - 2026-07-23
 
 ### Fixed

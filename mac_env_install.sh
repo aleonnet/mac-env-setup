@@ -440,7 +440,7 @@ print_installer_banner() {
     blackhole_spin 10
     echo ""
     shimmer_line "               ◆  M A C · E N V  ◆"
-    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.7.2${NC}"
+    echo -e "${INFO}        ambiente de desenvolvimento macOS ${MUTED}· v3.8.0${NC}"
     echo ""
     if [[ -t 1 ]]; then
         tput cnorm 2>/dev/null || true
@@ -1981,6 +1981,63 @@ zshrc_block_footer() {
 EOF
 }
 
+# Migra para o novo .zshrc tudo que estiver APÓS o rodapé do arquivo anterior —
+# é onde instaladores externos anexam (Claude Code, bun, etc). O marcador
+# "Fim da Configuração" é estrutural: NUNCA renomear sem migração.
+# Dedupe (classe export/alias/source/eval) contra o novo arquivo e entre si;
+# linhas de outras classes (if/fi etc.) passam verbatim para não quebrar blocos.
+zshrc_migrate_tail() {
+    local old="$1"
+    local new="$2"
+    [[ -f "$old" ]] || return 0
+    grep -qF '# Fim da Configuração' "$old" || return 0
+    local collected
+    collected="$(awk '
+        f {
+            if ($0 ~ /^# =====/) next
+            if ($0 ~ /^# ─────/) next
+            if ($0 ~ /^# Suas adições/) next
+            print
+        }
+        /# Fim da Configuração/ { f = 1 }
+    ' "$old")"
+    if [[ -z "${collected//[[:space:]]/}" ]]; then
+        return 0
+    fi
+    local line out="" seen=$'\n'
+    while IFS= read -r line; do
+        if [[ -z "${line//[[:space:]]/}" ]]; then
+            continue
+        fi
+        case "$line" in
+            export\ *|alias\ *|source\ *|eval\ *)
+                if grep -qxF "$line" "$new"; then
+                    continue
+                fi
+                case "$seen" in
+                    *$'\n'"$line"$'\n'*) continue ;;
+                esac
+                seen="${seen}${line}"$'\n'
+                ;;
+        esac
+        out="${out}${line}"$'\n'
+    done <<< "$collected"
+    if [[ -z "${out//[[:space:]]/}" ]]; then
+        return 0
+    fi
+    {
+        echo ""
+        echo "# ─────────────────────────────────────────────────────────────────────────────"
+        echo "# Suas adições — preservadas automaticamente do .zshrc anterior"
+        echo "# ─────────────────────────────────────────────────────────────────────────────"
+        printf '%s' "$out"
+    } >> "$new"
+    local n
+    n="$(printf '%s' "$out" | grep -c . || true)"
+    ui_info "Preservadas ${n} linha(s) suas do .zshrc anterior (seção 'Suas adições')"
+    return 0
+}
+
 write_zshrc() {
     local tmp
     tmp="$(mktempfile)"
@@ -2028,6 +2085,7 @@ write_zshrc() {
         starship) zshrc_block_starship >> "$tmp" ;;
     esac
     zshrc_block_footer >> "$tmp"
+    zshrc_migrate_tail "$HOME/.zshrc" "$tmp"
     backup_and_install_file "$tmp" "$HOME/.zshrc"
     ui_success ".zshrc escrito em $HOME/.zshrc"
     ui_warn "API keys (MAPBOX, OPENAI) estão comentadas. Edite ~/.zshrc se precisar."
