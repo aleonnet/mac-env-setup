@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Single-file project: `mac_env_install.sh` — a category-based macOS dev-environment installer in Bash with the "Event Horizon" amber art direction. All comments and console output are Brazilian Portuguese — keep new comments and UI strings in Portuguese.
 
-History note: a Go/Bubble Tea companion selector existed in v4.0.x and was deliberately removed in v4.1.0 (user prefers the gum flow; item search now uses `gum filter`). The full TUI source, release workflow and integration live at git tag `tui-v0.1.1` and the published `tui-v0.1.x` releases — do not rebuild it without being asked.
+History note: a Go/Bubble Tea companion selector existed in v4.0.x and was deliberately removed in v4.1.0 (user prefers the gum flow; item search now uses `gum filter`). The full TUI source, release workflow and integration live at git tag `tui-v0.1.1` and the published `tui-v0.1.x` releases — do not rebuild it without being asked; the resurrection recipe is in ROADMAP.md.
 
 Distributed for remote execution from the `main` branch:
 

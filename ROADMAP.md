@@ -58,6 +58,17 @@ python3 -c "import pty; pty.spawn(['/bin/bash','mac_env_install.sh','--dry-run',
 11. ~~**Xcode completo via `mas`**~~ — **feito na v3.11.0** (item opcional na categoria ios; falha graciosa sem login).
 12. ~~**Rollback**~~ — **feito na v3.11.0** (`--restore-zshrc` e `--remove a,b,c` com plano explícito e confirmação).
 
+## Como ressuscitar o TUI (se um dia fizer sentido)
+
+O companion Bubble Tea foi removido na v4.1.0, mas **nada foi apagado da história**:
+
+1. **Código-fonte**: `git checkout tui-v0.1.1 -- tui/ .github/workflows/release-tui.yml` restaura o app Go e o pipeline de release.
+2. **Integração no bash** (~160 linhas: `bootstrap_tui_temp`, `profile_items`, `tui_selection`, hook no `resolve_selection`, flag `--tui`): o commit de remoção `711a2ab` mostra exatamente o que re-adicionar — `git show 711a2ab -- mac_env_install.sh` (aplicar invertido).
+3. **Binários prontos**: os releases `tui-v0.1.0`/`tui-v0.1.1` continuam publicados — re-pinar `MACENV_TUI_VERSION="0.1.1"` volta a funcionar imediatamente, sem recompilar.
+4. Re-adicionar o job `tui` no `ci.yml` (histórico no mesmo commit) e rodar `go mod tidy` se as dependências tiverem envelhecido.
+
+Contexto da remoção e lições: item 9 do P3 acima.
+
 ## Decisões que não devem regredir (ver CLAUDE.md para o como)
 
 - Arquivo único + Bash 3.2 do sistema + pipe-safety — é o que garante o `curl | bash` universal; qualquer dependência nova segue o padrão gum (download temp + checksum + fallback).

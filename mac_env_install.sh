@@ -13,7 +13,7 @@
 # =============================================================================
 set -euo pipefail
 
-MACENV_VERSION="4.1.0"
+MACENV_VERSION="4.1.1"
 MACENV_RAW_URL="https://raw.githubusercontent.com/aleonnet/mac-env-setup/main/mac_env_install.sh"
 
 # -----------------------------------------------------------------------------
@@ -242,7 +242,10 @@ apply_gum_theme() {
     export GUM_FILTER_INDICATOR_FOREGROUND="#f5b000"
     export GUM_FILTER_MATCH_FOREGROUND="#f5b000"
     export GUM_FILTER_SELECTED_PREFIX=" ◆ "
+    export GUM_FILTER_SELECTED_PREFIX_FOREGROUND="#f5b000"
     export GUM_FILTER_UNSELECTED_PREFIX=" ◇ "
+    export GUM_FILTER_UNSELECTED_PREFIX_FOREGROUND="#5a6480"
+    export GUM_FILTER_PLACEHOLDER_FOREGROUND="#5a6480"
     export GUM_FILTER_HEADER_FOREGROUND="#8892b0"
     export GUM_FILTER_PROMPT="/ "
     export GUM_FILTER_PROMPT_FOREGROUND="#f5b000"

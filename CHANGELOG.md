@@ -2,6 +2,14 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [4.1.1] - 2026-07-24
+
+### Fixed
+- Tema do `gum filter`: o prefixo `◆` de item selecionado ainda usava o rosa padrão da Charm (color 212) — agora âmbar, com prefixos não-selecionados e placeholder em cinza da paleta. Zero `212` restante nos widgets tematizados.
+
+### Docs
+- `ROADMAP.md` ganha a seção **"Como ressuscitar o TUI"**: restauração do código pela tag `tui-v0.1.1`, reintegração via `git show 711a2ab` invertido, e re-pin dos binários já publicados — sem recompilar.
+
 ## [4.1.0] - 2026-07-24
 
 ### Removed
