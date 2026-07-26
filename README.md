@@ -67,7 +67,7 @@ Veja tudo com `bash mac_env_install.sh --list`.
 | `--list` | lista categorias/itens e sai |
 | `--verbose`, `-v` | mostra a saída completa de cada passo |
 
-Variáveis de ambiente: `MACENV_USE_GUM` (`auto`/`1`/`0`), `MACENV_GUM_VERSION` (padrão `0.17.0`), `NO_COLOR`.
+Variáveis de ambiente: `MACENV_USE_GUM` (`auto`/`1`/`0`), `MACENV_GUM_VERSION` (padrão `0.17.0`), `MACENV_ITERM_APP` (onde o iTerm2 mora — existe para o CI, padrão `/Applications/iTerm.app`), `NO_COLOR`.
 
 ## Configurações geradas (só quando a categoria `terminal` é selecionada)
 
@@ -75,7 +75,7 @@ Variáveis de ambiente: `MACENV_USE_GUM` (`auto`/`1`/`0`), `MACENV_GUM_VERSION` 
 - **`~/.config/starship.toml`** — preset oficial do Starship: `tokyo-night` (padrão) ou `catppuccin-powerline`, escolhido no seletor (fallback Event Horizon embutido quando sem rede); backup antes de sobrescrever. O preset é pós-processado para **mostrar o virtualenv Python ativo** na barra (o `tokyo-night` não traz o módulo `python`, então venv nunca apareceria) — com venv ativo sai ` v3.11.0 (.venv)`, o nome do venv em âmbar `#f5b000`. Escolher Powerlevel10k mantém seu `~/.p10k.zsh` intacto e instala a MesloLGS (fonte recomendada do p10k).
 - **`~/.config/ghostty/config`** — fonte Nerd Font, cursor âmbar e shader blackhole (quando selecionado); config nova é criada completa, config existente é preservada — no máximo o bloco `custom-shader` é **anexado** (com backup) se ainda não houver um.
 - **VS Code / Cursor** — `terminal.integrated.fontFamily` recebe a Nerd Font no `settings.json` de cada editor instalado (valor existente é preservado; backup antes de escrever).
-- **iTerm2** — fonte Nerd aplicada ao perfil padrão (iTerm2 fechado) ou via Dynamic Profile "MacEnv" (iTerm2 aberto); fonte Nerd já configurada é preservada.
+- **iTerm2** — fonte Nerd aplicada **sempre que o iTerm2 estiver instalado** (não precisa tê-lo selecionado), porque o `.zshrc` gerado entrega prompt powerline e `eza --icons` a todo terminal que não seja o Terminal da Apple. Vai no perfil padrão quando o iTerm2 está fechado, ou via Dynamic Profile "MacEnv" quando está aberto — nesse caso escolha Profiles → MacEnv, e o relatório final avisa. Fonte Nerd já configurada é preservada, e o perfil padrão só é editado se ele for de fato o padrão (`Default Bookmark Guid`).
 
 ## Comportamentos importantes
 

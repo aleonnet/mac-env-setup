@@ -152,3 +152,68 @@ jobs:
           ausente '^\[\](' "$FAKE/fallback.toml" "seta de powerline vazia no fallback"
           STARSHIP_CONFIG="$FAKE/fallback.toml" VIRTUAL_ENV=/tmp/proj/.venv starship prompt \
             | grep -q '(\.venv)'
+
+      - name: Fonte Nerd no iTerm2 (gate por presença + nomes PostScript)
+        run: |
+          set -e
+          ausente() {   # `! grep` não derruba step sob set -e; ver step anterior
+            if grep -q "$1" "$2"; then echo "CI: $3" >&2; exit 1; fi
+          }
+          sed '$d' mac_env_install.sh | sed '$d' > /tmp/lib.sh
+          FAKE="$(mktemp -d)"
+
+          # Estático: o plist do iTerm2 quer nome PostScript, não nome de arquivo.
+          # "MesloLGSNFM-Regular" é válido; "MesloLGSNerdFontMono-Regular" não existe.
+          # Comentários são filtrados — o próprio código documenta a armadilha citando
+          # o nome errado, e isso não pode disparar a asserção.
+          grep -v '^[[:space:]]*#' mac_env_install.sh > "$FAKE/sem-comentarios.sh"
+          grep -q 'MesloLGSNFM-Regular' "$FAKE/sem-comentarios.sh"
+          grep -q 'JetBrainsMonoNFM-Regular' "$FAKE/sem-comentarios.sh"
+          ausente 'NerdFontMono-Regular' "$FAKE/sem-comentarios.sh" "nome de arquivo onde vai nome PostScript"
+          # O ramo do plist NÃO é testável aqui: `defaults export/import` fala com o
+          # cfprefsd do usuário real e ignora $HOME. Um stub de `defaults` que falha
+          # força o caminho do Dynamic Profile, que é o que dá para verificar.
+          mkdir -p "$FAKE/stubbin"
+          printf '#!/bin/sh\nexit 1\n' > "$FAKE/stubbin/defaults"
+          chmod +x "$FAKE/stubbin/defaults"
+
+          dyn() { echo "$1/Library/Application Support/iTerm2/DynamicProfiles/macenv.json"; }
+          run_it() {   # run_it <home> <iterm-app> <selected_items>
+            HOME="$1" MACENV_CI_APP="$2" MACENV_CI_ITEMS="$3" PATH="$FAKE/stubbin:$PATH" \
+            /bin/bash -c '
+              set -euo pipefail
+              source /tmp/lib.sh
+              GUM=""
+              ITERM_APP="$MACENV_CI_APP"
+              SELECTED_ITEMS="$MACENV_CI_ITEMS"
+              configure_iterm2_font >/dev/null
+            '
+          }
+
+          # Gate: sem o app, nada é criado
+          H="$FAKE/noapp"; mkdir -p "$H"
+          run_it "$H" "$H/NaoExiste.app" " font-jetbrains "
+          if [ -f "$(dyn "$H")" ]; then echo "CI: criou perfil sem iTerm2 presente" >&2; exit 1; fi
+
+          # Com o app presente: perfil dinâmico válido e com a fonte certa
+          H="$FAKE/jb"; mkdir -p "$H/iTerm.app"
+          run_it "$H" "$H/iTerm.app" " font-jetbrains "
+          d="$(dyn "$H")"
+          [ -f "$d" ]
+          python3 -m json.tool "$d" > /dev/null
+          grep -q 'JetBrainsMonoNFM-Regular' "$d"
+          ausente 'NerdFontMono-Regular' "$d" "perfil dinâmico com nome de arquivo"
+
+          # Ramo Powerlevel10k (Meslo, sem JetBrains selecionada)
+          H="$FAKE/meslo"; mkdir -p "$H/iTerm.app"
+          run_it "$H" "$H/iTerm.app" " font-meslo "
+          d="$(dyn "$H")"
+          grep -q 'MesloLGSNFM-Regular' "$d"
+          ausente 'MesloLGSNerdFontMono-Regular' "$d" "perfil dinâmico com o nome de arquivo antigo"
+
+          # Perfil existente é preservado como está (pode ter sido editado à mão).
+          # Um diff contra cópia não serviria: reescrever o MESMO conteúdo passaria
+          # batido — por isso o teste planta um marcador e exige que ele sobreviva.
+          printf '{ "Profiles": [ { "Name": "MacEnv", "Normal Font": "MARCADOR-CI" } ] }\n' > "$d"
+          run_it "$H" "$H/iTerm.app" " font-meslo "
+          grep -q 'MARCADOR-CI' "$d" || { echo "CI: perfil dinâmico existente foi sobrescrito" >&2; exit 1; }

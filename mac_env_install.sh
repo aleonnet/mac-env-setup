@@ -13,7 +13,7 @@
 # =============================================================================
 set -euo pipefail
 
-MACENV_VERSION="4.3.0"
+MACENV_VERSION="4.3.1"
 MACENV_RAW_URL="https://raw.githubusercontent.com/aleonnet/mac-env-setup/main/mac_env_install.sh"
 
 # -----------------------------------------------------------------------------
@@ -725,6 +725,10 @@ TERMINAL_CHOICE=""      # ghostty | iterm2 | ambos | vazio
 PROFILE_LABEL=""
 SELECTION_MODE="preset" # preset | custom | repeat
 ITEM_TIMES=""           # "id:segundos" por item processado
+ITERM_MANUAL_STEP=0     # 1 quando a fonte do iTerm2 exige ação manual do usuário
+
+# Onde o iTerm2 mora — override existe para o CI exercitar o caminho sem o app
+ITERM_APP="${MACENV_ITERM_APP:-/Applications/iTerm.app}"
 
 # Estado persistente (última seleção + relatório da última execução)
 MACENV_STATE_DIR="$HOME/.config/macenv"
@@ -1490,7 +1494,7 @@ install_ghostty() {
 
 install_iterm2() {
     ensure_brew_in_path
-    if [[ -d "/Applications/iTerm.app" ]] || brew list --cask iterm2 &>/dev/null; then
+    if [[ -d "$ITERM_APP" ]] || brew list --cask iterm2 &>/dev/null; then
         return 100
     fi
     run_quiet_step "Instalando iTerm2" brew install --cask iterm2 || return 1
@@ -2650,32 +2654,50 @@ PYEOF
 
 # Fonte Nerd no perfil padrão do iTerm2 — via defaults export/import (respeita o
 # cfprefsd). iTerm2 aberto ou sem plist: cai para Dynamic Profile (hot-load).
+# Age por PRESENÇA do app (não por seleção), igual ao tratamento de VS Code e
+# Cursor: o .zshrc gerado entrega powerline + eza --icons a todo terminal que não
+# seja o Terminal da Apple, então o iTerm2 instalado precisa da fonte Nerd para
+# não virar tofu. Fonte Nerd já configurada é sempre preservada.
+# Nomes de fonte aqui são PostScript (é o que o plist do iTerm2 espera) — não
+# nome de arquivo: "MesloLGSNFM-Regular", nunca "MesloLGSNerdFontMono-Regular".
 configure_iterm2_font() {
-    item_selected iterm2 || return 0
+    [[ -d "$ITERM_APP" ]] || return 0
     local psfont="JetBrainsMonoNFM-Regular 14"
     if ! item_selected font-jetbrains && item_selected font-meslo; then
-        psfont="MesloLGSNerdFontMono-Regular 14"
+        psfont="MesloLGSNFM-Regular 14"
     fi
-    local tmp current
+    local tmp current guid0 defguid
     tmp="$(mktempfile)"
     if ! pgrep -xq iTerm2 && defaults export com.googlecode.iterm2 "$tmp" 2>/dev/null; then
-        if current="$(/usr/libexec/PlistBuddy -c 'Print :"New Bookmarks":0:"Normal Font"' "$tmp" 2>/dev/null)"; then
+        # O perfil de índice 0 não é necessariamente o padrão; se divergir do
+        # Default Bookmark Guid, não mexe no plist e cai no perfil dinâmico.
+        guid0="$(/usr/libexec/PlistBuddy -c 'Print :"New Bookmarks":0:Guid' "$tmp" 2>/dev/null || true)"
+        defguid="$(/usr/libexec/PlistBuddy -c 'Print :"Default Bookmark Guid"' "$tmp" 2>/dev/null || true)"
+        if [[ -z "$guid0" || -z "$defguid" || "$guid0" == "$defguid" ]] \
+            && current="$(/usr/libexec/PlistBuddy -c 'Print :"New Bookmarks":0:"Normal Font"' "$tmp" 2>/dev/null)"; then
             case "$current" in
                 *NFM*|*NerdFont*|*"Nerd Font"*)
                     echo -e "${GUT}${MUTED}◇ iTerm2: fonte Nerd já configurada — preservada${NC}"
                     return 0
                     ;;
             esac
-            if /usr/libexec/PlistBuddy -c "Set :\"New Bookmarks\":0:\"Normal Font\" ${psfont}" "$tmp" 2>/dev/null \
-                && defaults import com.googlecode.iterm2 "$tmp" 2>/dev/null; then
-                ui_success "iTerm2: fonte do perfil padrão definida (${psfont%% *})"
-                return 0
+            if /usr/libexec/PlistBuddy -c "Set :\"New Bookmarks\":0:\"Normal Font\" ${psfont}" "$tmp" 2>/dev/null; then
+                # Com "Use Non-ASCII Font" ligado, os ícones vêm da fonte não-ASCII:
+                # definir só a Normal Font deixaria o tofu de pé.
+                if [[ "$(/usr/libexec/PlistBuddy -c 'Print :"New Bookmarks":0:"Use Non-ASCII Font"' "$tmp" 2>/dev/null || true)" == "true" ]]; then
+                    /usr/libexec/PlistBuddy -c "Set :\"New Bookmarks\":0:\"Non Ascii Font\" ${psfont}" "$tmp" 2>/dev/null || true
+                fi
+                if defaults import com.googlecode.iterm2 "$tmp" 2>/dev/null; then
+                    ui_success "iTerm2: fonte do perfil padrão definida (${psfont%% *})"
+                    return 0
+                fi
             fi
         fi
     fi
     local dyn="$HOME/Library/Application Support/iTerm2/DynamicProfiles/macenv.json"
     if [[ -f "$dyn" ]]; then
         echo -e "${GUT}${MUTED}◇ iTerm2: perfil dinâmico MacEnv já existe — preservado${NC}"
+        ITERM_MANUAL_STEP=1
         return 0
     fi
     mkdir -p "$(dirname "$dyn")"
@@ -2683,6 +2705,7 @@ configure_iterm2_font() {
 { "Profiles": [ { "Name": "MacEnv", "Guid": "macenv-nerd-font", "Normal Font": "${psfont}" } ] }
 EOF
     ui_success "iTerm2: perfil dinâmico 'MacEnv' criado com fonte Nerd (Profiles → MacEnv)"
+    ITERM_MANUAL_STEP=1
     return 0
 }
 
@@ -2798,6 +2821,9 @@ print_final_report() {
     fi
     if item_selected iterm2; then
         add_step "iTerm2: Settings → Profiles → Text → Font → fonte Nerd Font instalada"
+    fi
+    if [[ "$ITERM_MANUAL_STEP" == "1" ]]; then
+        add_step "iTerm2 estava aberto — escolha Profiles → MacEnv para ativar a fonte Nerd"
     fi
     if [[ "$PROMPT_ACTIVE" == "starship" ]]; then
         add_step "Prompt Starship ativo — ajuste em ~/.config/starship.toml"

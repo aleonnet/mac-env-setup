@@ -2,6 +2,22 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [4.3.1] - 2026-07-26
+
+### Changed
+- **Fonte Nerd no iTerm2 agora é aplicada por presença do app**, não por seleção. O `.zshrc` gerado entrega prompt powerline e `eza --icons` a todo terminal que não seja o Terminal da Apple, então um iTerm2 instalado precisava da fonte para não virar tofu — mas `configure_iterm2_font()` só agia se `iterm2` estivesse na seleção, e ele é default `0` no catálogo. VS Code e Cursor já eram tratados por presença; o iTerm2 era a exceção inconsistente. Fonte Nerd já configurada continua sendo preservada, então a mudança só toca perfil quebrado. Continua restrito ao estágio Configurações, ou seja, só quando a categoria `terminal` é selecionada.
+
+### Fixed
+- **Nome de fonte inválido no ramo Powerlevel10k**: `configure_iterm2_font()` escrevia `MesloLGSNerdFontMono-Regular`, que é o nome do *arquivo* — o plist do iTerm2 espera o nome **PostScript**, `MesloLGSNFM-Regular`. Quem escolhia Powerlevel10k (que auto-seleciona a Meslo) recebia uma fonte inexistente, o iTerm2 caía no fallback do sistema e os glifos viravam tofu. O ramo do JetBrains (`JetBrainsMonoNFM-Regular`) já estava correto.
+- **Perfil errado do iTerm2**: a função escrevia em `New Bookmarks:0`, assumindo que o perfil de índice 0 é o padrão. Agora compara o `Guid` dele com o `Default Bookmark Guid` e, se divergirem, não mexe no plist — cai no perfil dinâmico, que não altera a configuração de ninguém.
+- **`Use Non-ASCII Font`**: com esse toggle ligado, os ícones vêm da fonte não-ASCII, então definir só a `Normal Font` deixava o tofu de pé. Quando ligado, a `Non Ascii Font` recebe a mesma fonte Nerd (o toggle é preservado).
+
+### Added
+- Passo no relatório final quando o iTerm2 estava **aberto** durante a instalação: nesse caminho a função cria o perfil dinâmico "MacEnv", que não vira o padrão — nada muda visualmente até escolher Profiles → MacEnv.
+
+### CI
+- Novo step **"Fonte Nerd no iTerm2"**: asserção estática de que o script não usa nome de arquivo onde vai nome PostScript (comentários filtrados, já que o próprio código cita o nome errado como aviso), e asserções funcionais sobre o perfil dinâmico em `$HOME` falso — gate por presença, JSON válido, fonte correta em cada ramo, e perfil existente preservado. O ramo do plist não é coberto: `defaults export/import` fala com o `cfprefsd` do usuário real e ignora `$HOME`; um stub de `defaults` força o caminho testável. Cobertura conferida por mutation testing: 5 regressões plantadas, 5 detectadas — a primeira rodada revelou que a asserção de idempotência era vazia (reescrever o mesmo conteúdo passa batido por um `diff`), hoje ela planta um marcador.
+
 ## [4.3.0] - 2026-07-25
 
 ### Added
