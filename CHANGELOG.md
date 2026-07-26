@@ -2,6 +2,24 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [4.3.0] - 2026-07-25
+
+### Added
+- **Virtualenv Python visível no prompt**: o `starship.toml` gerado passa a incluir o módulo `python` com o nome do venv em destaque — âmbar `#f5b000` no `tokyo-night`, negrito no `catppuccin-powerline` (âmbar sobre o verde claro do preset dá ~1.4:1 de contraste), e âmbar também no fallback Event Horizon. Com venv ativo a barra mostra ` v3.11.0 (.venv)`; em projeto Python sem venv, só a versão; fora de projeto Python, nada muda.
+
+  O `tokyo-night` **não traz `$python` no `format`** (só `$nodejs $bun $rust $golang $php`) — por isso o prompt ficava idêntico antes e depois do `activate`. Agrava porque o `starship init zsh` exporta `VIRTUAL_ENV_DISABLE_PROMPT=1`, desligando de propósito o prefixo `(.venv)` que o `activate` colocaria no `PS1`: o Starship espera mostrar o venv pelo módulo `python`, que o preset não incluía. O pós-processamento (`starship_patch_venv`) é idempotente e não-destrutivo — valida o TOML resultante com `starship print-config` e mantém o preset original se algo falhar.
+
+### CI
+- Novo step **"Segmento de venv no starship.toml (presets + fallback)"**: instala o Starship no runner e valida, para os dois presets, que `$python` entra no `format` logo após a âncora `$nodejs`, que existe uma única tabela `[python]`, que o TOML é válido, que o render **com** `VIRTUAL_ENV` mostra `(.venv)` e **sem** não vaza, e que `starship_patch_venv` é idempotente. Valida também o fallback embutido (TOML, âmbar no venv, nenhum símbolo ou seta de powerline vazios). O step de `.zshrc` ganhou asserções da guarda `[[ -d $PYENV_ROOT/bin ]]` e da ausência de `pyenv-virtualenv`. Cobertura conferida por mutation testing: 8 regressões plantadas, 8 detectadas.
+- Asserções de **ausência** passam por uma função `ausente()` em vez de `! grep`: sob `set -e` o bash não sai quando o status é invertido por `!`, então `! grep -q ...` nunca derruba um step — era um teste que não testava nada.
+
+### Fixed
+- **`$PYENV_ROOT/bin` inexistente no PATH**: o bloco pyenv do `.zshrc` gerado exportava `$PYENV_ROOT/bin` sem checar se existe — e com pyenv instalado via Homebrew (o caminho deste script) `~/.pyenv` só tem `cache/`, `shims/`, `version` e `versions/`, então todo `.zshrc` gerado plantava um diretório morto no PATH. Agora vai sob guarda `[[ -d ]]`.
+- **O fallback Event Horizon embutido nunca teve seus glifos Nerd Font**: as duas setas de powerline do `format` eram `[]` (colchete vazio) e `[git_branch]`, `[nodejs]` e `[java]` tinham `symbol = ""` — ou seja, o config que se chama "powerline" renderizava sem nenhuma transição entre segmentos e sem ícones. Não é regressão: `git log -S` mostra que o bloco entrou assim no commit que o criou (v3.3.1) e atravessou 8 versões intocado. Repostos via escape TOML (`\ue0b0`, `\uf418`, `\ue718`, `\ue256`), o mesmo mecanismo do `[python]`, que mantém o fonte do script em ASCII.
+
+### Removed
+- **`pyenv-virtualenv` sai do catálogo** e do `.zshrc` gerado (o item `pyenv` continua, só com a fórmula `pyenv`). Convenção adotada: **pyenv para a versão do Python, `python -m venv .venv` para os pacotes do projeto** — duas ferramentas resolvendo isolamento é ruído, e o `pyenv-virtualenv` ainda mexe no `PS1` por conta própria. Quem já tem a fórmula instalada não é incomodado: o script não desinstala nem sugere desinstalar — apenas deixa de instalar e de inicializar.
+
 ## [4.2.0] - 2026-07-24
 
 ### Added

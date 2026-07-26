@@ -67,6 +67,88 @@ jobs:
             PROMPT_ACTIVE=starship
             write_zshrc
           '
+          # ATENÇÃO: `! grep ...` NÃO derruba o step — com set -e o bash não sai
+          # quando o status é invertido por `!`. Ausência se testa com esta função.
+          ausente() {   # ausente <regex> <arquivo> <mensagem>
+            if grep -q "$1" "$2"; then echo "CI: $3" >&2; exit 1; fi
+          }
           zsh -n "$FAKE/.zshrc"
           grep -q 'starship init zsh' "$FAKE/.zshrc"
-          grep -q 'Suas adições' "$FAKE/.zshrc" && exit 1 || true   # sem tail não há seção
+          ausente 'Suas adições' "$FAKE/.zshrc" "sem tail anterior não deveria haver a seção"
+          # Bloco pyenv: guarda no PATH (com brew não existe $PYENV_ROOT/bin) e
+          # nada de pyenv-virtualenv (removido do catálogo na v4.3.0)
+          grep -q '\[\[ -d "\$PYENV_ROOT/bin" \]\] && export PATH' "$FAKE/.zshrc"
+          ausente 'virtualenv-init'  "$FAKE/.zshrc" "pyenv-virtualenv voltou ao .zshrc gerado"
+          ausente 'PYENV_VIRTUALENV' "$FAKE/.zshrc" "variável do pyenv-virtualenv voltou"
+
+      - name: Segmento de venv no starship.toml (presets + fallback)
+        run: |
+          set -e
+          brew list starship >/dev/null 2>&1 || brew install starship
+          sed '$d' mac_env_install.sh | sed '$d' > /tmp/lib.sh
+          FAKE="$(mktemp -d)"
+
+          # `! grep ...` não derruba o step sob set -e (o bash não sai quando o
+          # status é invertido por `!`) — ausência se testa com estas funções.
+          ausente() {   # ausente <regex> <arquivo> <mensagem>
+            if grep -q "$1" "$2"; then echo "CI: $3" >&2; exit 1; fi
+          }
+          toml_valido() {   # toml_valido <arquivo> — print-config sai 0 mesmo com erro
+            if STARSHIP_CONFIG="$1" starship print-config 2>&1 >/dev/null | grep -q 'Unable to parse'; then
+              echo "CI: TOML inválido em $1" >&2; exit 1
+            fi
+          }
+
+          for preset in tokyo-night catppuccin-powerline; do
+            H="$FAKE/$preset"; mkdir -p "$H"
+            # STARSHIP_PRESET só depois do source: o script o inicializa no topo
+            HOME="$H" MACENV_CI_PRESET="$preset" /bin/bash -c '
+              set -euo pipefail
+              source /tmp/lib.sh
+              GUM=""
+              STARSHIP_PRESET="$MACENV_CI_PRESET"
+              detect_macos_or_die >/dev/null
+              write_starship_config >/dev/null
+            '
+            cfg="$H/.config/starship.toml"
+
+            echo "── $preset ──"
+            grep -qxF '$python\' "$cfg"                                    # módulo no format
+            [ "$(grep -c '^\[python\]$' "$cfg")" = "1" ]                    # uma única tabela
+            grep -q 'detect_env_vars = \["VIRTUAL_ENV"\]' "$cfg"
+            ausente '#\$virtualenv' "$cfg" "o '#' do preset deveria ter saído do formato"
+            if [ "$preset" = "tokyo-night" ]; then
+              grep -q 'f5b000' "$cfg"                                      # âmbar no venv
+              grep -A1 -xF '$nodejs\' "$cfg" | grep -qxF '$python\'         # âncora preservada
+            else
+              grep -q 'bg:green bold' "$cfg"                               # realce do catppuccin
+            fi
+            toml_valido "$cfg"
+
+            # Render de verdade: com venv mostra o nome, sem venv não vaza
+            STARSHIP_CONFIG="$cfg" VIRTUAL_ENV=/tmp/proj/.venv starship prompt | grep -q '(\.venv)'
+            STARSHIP_CONFIG="$cfg" starship prompt > "$FAKE/render-sem-venv.txt"
+            ausente '\.venv' "$FAKE/render-sem-venv.txt" "prompt sem venv não deveria citar .venv"
+
+            # starship_patch_venv precisa ser idempotente (2a passada não muda nada)
+            cp "$cfg" "$cfg.before"
+            MACENV_CI_PRESET="$preset" /bin/bash -c '
+              set -euo pipefail
+              source /tmp/lib.sh
+              GUM=""
+              starship_patch_venv "$1" "$MACENV_CI_PRESET" >/dev/null
+            ' _ "$cfg"
+            diff -q "$cfg.before" "$cfg"
+          done
+
+          # Fallback Event Horizon embutido (usado quando `starship preset` falha):
+          # TOML válido, venv em âmbar e nenhum glifo Nerd Font faltando
+          awk '/^# starship.toml — gerado por mac_env_install.sh \(v3\)/,/^EOF$/' mac_env_install.sh \
+            | sed '$d' > "$FAKE/fallback.toml"
+          [ -s "$FAKE/fallback.toml" ]                       # extração não pode vir vazia
+          toml_valido "$FAKE/fallback.toml"
+          grep -q 'fg:amber' "$FAKE/fallback.toml"
+          ausente '^symbol = ""$' "$FAKE/fallback.toml" "símbolo vazio: glifo Nerd Font perdido"
+          ausente '^\[\](' "$FAKE/fallback.toml" "seta de powerline vazia no fallback"
+          STARSHIP_CONFIG="$FAKE/fallback.toml" VIRTUAL_ENV=/tmp/proj/.venv starship prompt \
+            | grep -q '(\.venv)'

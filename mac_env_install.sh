@@ -13,7 +13,7 @@
 # =============================================================================
 set -euo pipefail
 
-MACENV_VERSION="4.2.0"
+MACENV_VERSION="4.3.0"
 MACENV_RAW_URL="https://raw.githubusercontent.com/aleonnet/mac-env-setup/main/mac_env_install.sh"
 
 # -----------------------------------------------------------------------------
@@ -704,7 +704,7 @@ ITEM_DB=(
     "wget|dev|wget|1|f:wget|downloads recursivos e em lote"
     "docker|dev|Docker Desktop|1|c!:docker-desktop|containers + Docker Compose"
     "node|dev|Node.js + pnpm + bun|1|f:node f:pnpm f:bun|runtime JS + gerenciadores de pacote rápidos"
-    "pyenv|dev|pyenv + pyenv-virtualenv|1|f:pyenv f:pyenv-virtualenv|múltiplas versões de Python + virtualenvs"
+    "pyenv|dev|pyenv (versões do Python)|1|f:pyenv|várias versões do Python — pacotes por projeto com python -m venv"
     "claude-code|dev|Claude Code|1||CLI de IA da Anthropic (instalador nativo em ~/.local/bin)"
     "awscli|cloud|AWS CLI|1|f:awscli|gerencia serviços AWS pelo terminal"
     "supabase|cloud|Supabase CLI|1|f:supabase|Supabase local + migrations + deploy"
@@ -1687,18 +1687,10 @@ install_node() {
 
 install_pyenv() {
     ensure_brew_in_path
-    local did=0
-    if ! command -v pyenv &>/dev/null; then
-        run_quiet_step "Instalando pyenv" brew install pyenv || return 1
-        did=1
-    fi
-    if ! brew list pyenv-virtualenv &>/dev/null; then
-        run_quiet_step "Instalando pyenv-virtualenv" brew install pyenv-virtualenv || return 1
-        did=1
-    fi
-    if [[ $did -eq 0 ]]; then
+    if command -v pyenv &>/dev/null; then
         return 100
     fi
+    run_quiet_step "Instalando pyenv" brew install pyenv || return 1
     return 0
 }
 
@@ -2085,14 +2077,12 @@ EOF
 zshrc_block_pyenv() {
     cat <<'EOF'
 
-# pyenv + pyenv-virtualenv
+# pyenv — versão do Python. Pacotes por projeto: python -m venv .venv
 export PYENV_ROOT="$HOME/.pyenv"
-export PATH="$PYENV_ROOT/bin:$PATH"
+# Guarda: com pyenv via Homebrew não existe $PYENV_ROOT/bin (só shims/versions)
+[[ -d "$PYENV_ROOT/bin" ]] && export PATH="$PYENV_ROOT/bin:$PATH"
 if command -v pyenv 1>/dev/null 2>&1; then
   eval "$(pyenv init -)"
-  if command -v pyenv-virtualenv-init 1>/dev/null 2>&1; then
-    eval "$(pyenv virtualenv-init -)"
-  fi
 fi
 EOF
 }
@@ -2383,19 +2373,79 @@ write_zshrc() {
     return 0
 }
 
+# Garante o segmento Python com destaque de venv no starship.toml do preset.
+# O tokyo-night não tem $python no format (venv nunca aparece); o catppuccin tem,
+# mas sem realce. Idempotente e não-destrutiva: qualquer falha mantém o preset.
+starship_patch_venv() {
+    local file="$1" preset="$2"
+    local tmp ins=1 err
+    tmp="$(mktempfile)"
+    grep -qxF '$python\' "$file" && ins=0
+    # Remove uma tabela [python] existente e injeta $python na faixa de linguagens
+    # (âncora $nodejs\, coluna 1, presente nos dois presets) — as duas rotas
+    # convergem para o bloco único acrescentado abaixo. emit() segura linhas em
+    # branco até vir conteúdo, então as do fim somem: sem isso cada passada
+    # acumularia uma linha em branco e o patch deixaria de ser idempotente.
+    awk -v ins="$ins" '
+        function emit(l) {
+            if (l == "") { buf = buf ORS; return }
+            printf "%s%s%s", buf, l, ORS; buf = ""
+        }
+        /^\[python\]/ { skip = 1; next }
+        skip && /^\[/ { skip = 0 }
+        skip          { next }
+        { emit($0) }
+        ins && /^\$nodejs\\$/ && !done { emit("$python\\"); done = 1 }
+    ' "$file" > "$tmp" 2>/dev/null || { ui_warn "Segmento de venv não aplicado — preset ${preset} mantido"; return 0; }
+    # Glifo do Python via escape TOML (\ue606, o mesmo dos presets oficiais):
+    # mantém este arquivo em ASCII puro.
+    case "$preset" in
+        catppuccin-powerline)
+            # Âmbar sobre o verde claro do preset dá ~1.4:1 de contraste: usa bold.
+            cat >> "$tmp" <<'EOF'
+
+[python]
+symbol = "\ue606"
+style = "bg:green"
+detect_env_vars = ["VIRTUAL_ENV"]
+format = '[[ $symbol( $version)](fg:crust bg:green)[( \($virtualenv\))](fg:crust bg:green bold)[ ](bg:green)]($style)'
+EOF
+            ;;
+        *)
+            cat >> "$tmp" <<'EOF'
+
+[python]
+symbol = "\ue606"
+style = "bg:#212736"
+detect_env_vars = ["VIRTUAL_ENV"]
+format = '[[ $symbol( $version)](fg:#769ff0 bg:#212736)[( \($virtualenv\))](fg:#f5b000 bg:#212736)[ ](bg:#212736)]($style)'
+EOF
+            ;;
+    esac
+    # print-config sempre sai 0; TOML inválido aparece como erro na stderr
+    err="$(STARSHIP_CONFIG="$tmp" starship print-config 2>&1 >/dev/null || true)"
+    if [[ "$err" == *"Unable to parse"* ]] || ! grep -qxF '$python\' "$tmp"; then
+        ui_warn "Segmento de venv não aplicado — preset ${preset} mantido"
+        return 0
+    fi
+    cp "$tmp" "$file"
+    return 0
+}
+
 write_starship_config() {
     ensure_brew_in_path
     local tmp
     tmp="$(mktempfile)"
     # Preset oficial do Starship (tokyo-night padrão); fallback embutido offline
     if command -v starship &>/dev/null && starship preset "$STARSHIP_PRESET" > "$tmp" 2>/dev/null && [[ -s "$tmp" ]]; then
+        starship_patch_venv "$tmp" "$STARSHIP_PRESET"
         backup_and_install_file "$tmp" "$HOME/.config/starship.toml"
-        ui_success "starship.toml escrito (preset ${STARSHIP_PRESET})"
+        ui_success "starship.toml escrito (preset ${STARSHIP_PRESET} + venv Python na barra)"
         return 0
     fi
     cat > "$tmp" <<'EOF'
 # starship.toml — gerado por mac_env_install.sh (v3) · Event Horizon powerline (fallback)
-# Requer Nerd Font no terminal (setas  e símbolos)
+# Requer Nerd Font no terminal (setas de powerline e símbolos de linguagem)
 "$schema" = 'https://starship.rs/config-schema.json'
 add_newline = true
 palette = "event_horizon"
@@ -2403,10 +2453,10 @@ palette = "event_horizon"
 format = """
 [░▒▓](amber)\
 $directory\
-[](fg:amber bg:surface)\
+[\ue0b0](fg:amber bg:surface)\
 $git_branch\
 $git_status\
-[](fg:surface)\
+[\ue0b0](fg:surface)\
 $nodejs\
 $python\
 $java\
@@ -2424,7 +2474,7 @@ truncation_length = 4
 truncate_to_repo = true
 
 [git_branch]
-symbol = ""
+symbol = "\uf418"
 style = "bg:surface"
 format = '[[ $symbol $branch ](fg:hot bg:surface)]($style)'
 
@@ -2433,15 +2483,16 @@ style = "bg:surface"
 format = '[[($all_status$ahead_behind )](fg:hot bg:surface)]($style)'
 
 [nodejs]
-symbol = ""
+symbol = "\ue718"
 format = '[ $symbol ($version)](fg:info)'
 
 [python]
-symbol = ""
-format = '[ $symbol ($version)(\($virtualenv\))](fg:info)'
+symbol = "\ue606"
+detect_env_vars = ["VIRTUAL_ENV"]
+format = '[ $symbol( $version)](fg:info)[( \($virtualenv\))](fg:amber)'
 
 [java]
-symbol = ""
+symbol = "\ue256"
 format = '[ $symbol ($version)](fg:info)'
 
 [cmd_duration]
@@ -2750,6 +2801,9 @@ print_final_report() {
     fi
     if [[ "$PROMPT_ACTIVE" == "starship" ]]; then
         add_step "Prompt Starship ativo — ajuste em ~/.config/starship.toml"
+    fi
+    if [[ "$PROMPT_ACTIVE" == "starship" ]] && item_selected pyenv; then
+        add_step "Venv na barra do prompt — crie com 'python -m venv .venv' e ative com 'source .venv/bin/activate'"
     fi
     if [[ "$PROMPT_ACTIVE" == "p10k" ]]; then
         add_step "Powerlevel10k: rode 'p10k configure' se quiser reconfigurar"
