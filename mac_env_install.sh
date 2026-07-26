@@ -13,7 +13,7 @@
 # =============================================================================
 set -euo pipefail
 
-MACENV_VERSION="4.3.1"
+MACENV_VERSION="4.3.2"
 MACENV_RAW_URL="https://raw.githubusercontent.com/aleonnet/mac-env-setup/main/mac_env_install.sh"
 
 # -----------------------------------------------------------------------------
@@ -2700,11 +2700,15 @@ configure_iterm2_font() {
         ITERM_MANUAL_STEP=1
         return 0
     fi
+    # "Dynamic Profile Parent Name" faz o MacEnv herdar TODO o perfil Default e
+    # sobrescrever só a fonte — sem isso as chaves não declaradas caem nos padrões
+    # do iTerm2 e escolher o perfil trocaria as cores do usuário. Perfis dinâmicos
+    # são hot-loaded (o iTerm2 monitora a pasta), então aparece sem reiniciar.
     mkdir -p "$(dirname "$dyn")"
     cat > "$dyn" <<EOF
-{ "Profiles": [ { "Name": "MacEnv", "Guid": "macenv-nerd-font", "Normal Font": "${psfont}" } ] }
+{ "Profiles": [ { "Name": "MacEnv", "Guid": "macenv-nerd-font", "Dynamic Profile Parent Name": "Default", "Normal Font": "${psfont}" } ] }
 EOF
-    ui_success "iTerm2: perfil dinâmico 'MacEnv' criado com fonte Nerd (Profiles → MacEnv)"
+    ui_success "iTerm2: perfil 'MacEnv' criado — herda seu perfil Default, só troca a fonte"
     ITERM_MANUAL_STEP=1
     return 0
 }
@@ -2823,7 +2827,7 @@ print_final_report() {
         add_step "iTerm2: Settings → Profiles → Text → Font → fonte Nerd Font instalada"
     fi
     if [[ "$ITERM_MANUAL_STEP" == "1" ]]; then
-        add_step "iTerm2 estava aberto — escolha Profiles → MacEnv para ativar a fonte Nerd"
+        add_step "iTerm2: use Profiles → MacEnv (fonte Nerd) — ou feche o iTerm2 e re-execute para aplicar no perfil Default"
     fi
     if [[ "$PROMPT_ACTIVE" == "starship" ]]; then
         add_step "Prompt Starship ativo — ajuste em ~/.config/starship.toml"

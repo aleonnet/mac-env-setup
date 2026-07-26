@@ -2,6 +2,12 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [4.3.2] - 2026-07-26
+
+### Fixed
+- **O perfil "MacEnv" do iTerm2 agora herda o seu perfil Default** (`"Dynamic Profile Parent Name": "Default"`, chave [documentada pelo iTerm2](https://iterm2.com/documentation-dynamic-profiles.html)). Esse perfil é o caminho usado quando a fonte não pode ir no plist — tipicamente **quando o instalador é rodado de dentro do próprio iTerm2**, que é o caso mais comum de todos: o iTerm2 mantém as preferências em memória e as sobrescreve ao sair, então escrever no plist com ele aberto se perderia. Antes o MacEnv declarava só a fonte, e as chaves não declaradas caíam nos padrões do iTerm2 — escolher o perfil trocava as cores do usuário, o que tornava o fallback inútil na prática. Agora ele herda tudo e troca apenas a fonte. Perfis dinâmicos são hot-loaded, então aparece sem reiniciar o app.
+- Passo do relatório final reescrito: dizia "iTerm2 estava aberto" mesmo quando o motivo era outro (plist indisponível, perfil 0 não sendo o padrão), e não dizia como tornar permanente. Agora aponta Profiles → MacEnv **ou** fechar o iTerm2 e re-executar para gravar no perfil Default.
+
 ## [4.3.1] - 2026-07-26
 
 ### Changed

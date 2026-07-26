@@ -203,6 +203,10 @@ jobs:
           python3 -m json.tool "$d" > /dev/null
           grep -q 'JetBrainsMonoNFM-Regular' "$d"
           ausente 'NerdFontMono-Regular' "$d" "perfil dinâmico com nome de arquivo"
+          # Sem "Dynamic Profile Parent Name" as chaves não declaradas caem nos
+          # padrões do iTerm2 e escolher MacEnv trocaria as cores do usuário.
+          grep -q '"Dynamic Profile Parent Name": "Default"' "$d"
+          grep -q '"Name": "MacEnv"' "$d"
 
           # Ramo Powerlevel10k (Meslo, sem JetBrains selecionada)
           H="$FAKE/meslo"; mkdir -p "$H/iTerm.app"
