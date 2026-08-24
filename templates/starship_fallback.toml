@@ -1,0 +1,78 @@
+# starship.toml — gerado por mac_env_install.sh (v3) · Event Horizon powerline (fallback)
+# Requer Nerd Font no terminal (setas de powerline e símbolos de linguagem)
+"$schema" = 'https://starship.rs/config-schema.json'
+add_newline = true
+palette = "event_horizon"
+
+format = """
+[░▒▓](amber)\
+$directory\
+[\ue0b0](fg:amber bg:surface)\
+$git_branch\
+$git_status\
+[\ue0b0](fg:surface)\
+$nodejs\
+$python\
+$java\
+$cmd_duration
+$character"""
+
+[character]
+success_symbol = "[❯](bold amber)"
+error_symbol = "[❯](bold red)"
+
+[directory]
+style = "fg:crust bg:amber bold"
+format = "[ $path ]($style)"
+truncation_length = 4
+truncate_to_repo = true
+
+[git_branch]
+symbol = "\uf418"
+style = "bg:surface"
+format = '[[ $symbol $branch ](fg:hot bg:surface)]($style)'
+
+[git_status]
+style = "bg:surface"
+format = '[[($all_status$ahead_behind )](fg:hot bg:surface)]($style)'
+
+[nodejs]
+symbol = "\ue718"
+format = '[ $symbol ($version)](fg:info)'
+
+[python]
+symbol = "\ue606"
+detect_env_vars = ["VIRTUAL_ENV"]
+format = '[ $symbol( $version)](fg:info)[( \($virtualenv\))](fg:amber)'
+
+[java]
+symbol = "\ue256"
+format = '[ $symbol ($version)](fg:info)'
+
+[cmd_duration]
+min_time = 2000
+style = "fg:muted"
+format = "[  $duration]($style)"
+
+[aws]
+disabled = true
+
+[gcloud]
+disabled = true
+
+[azure]
+disabled = true
+
+[docker_context]
+disabled = true
+
+[palettes.event_horizon]
+ember = "#c47800"
+amber = "#f5b000"
+hot = "#ffd75e"
+info = "#8892b0"
+muted = "#5a6480"
+cyan = "#00e5cc"
+red = "#e63946"
+crust = "#120b02"
+surface = "#2b1f0a"

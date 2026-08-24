@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-Single-file project: `mac_env_install.sh` — a category-based macOS dev-environment installer in Bash with the "Event Horizon" amber art direction. All comments and console output are Brazilian Portuguese — keep new comments and UI strings in Portuguese.
+Single-file DELIVERY (`mac_env_install.sh` via curl|bash), segmented factory: static payloads live in `templates/` (fallback `starship.toml`, editor-font python patcher) and are embedded into the script by `tools/embed.sh` — the heredoc delimiters themselves are the markers, and `--check` fails on drift (gate + CI). Dynamic payloads (the `.zshrc` blocks, runtime-interpolated) stay inline by design — measurement showed segmenting them adds machinery without lint benefit. Category-based macOS dev-environment installer in Bash with the "Event Horizon" amber art direction. All comments and console output are Brazilian Portuguese — keep new comments and UI strings in Portuguese.
 
 History note: `pyenv-virtualenv` was deliberately removed from the catalog in v4.3.0 — the adopted convention is **pyenv for the Python version, `python -m venv .venv` for project packages**. Do not re-add it (it also mutates `PS1` on its own, fighting Starship/p10k). The script never uninstalls or nags about a formula the user already has.
 
@@ -21,15 +21,17 @@ curl -fsSL https://raw.githubusercontent.com/aleonnet/mac-env-setup/main/mac_env
 ## Running / testing
 
 ```bash
+./tools/gate.sh                                     # THE quality gate — same script CI runs
 bash mac_env_install.sh --list                      # catalog
 bash mac_env_install.sh --dry-run --profile dev     # plan without installing
 cat mac_env_install.sh | /bin/bash -s -- --dry-run --profile completo   # pipe-safety check
-bash -n mac_env_install.sh                          # syntax (also run shellcheck if available)
 ```
+
+After editing anything in `templates/`, run `./tools/embed.sh` BEFORE testing — the gate and CI fail on copy/source drift. Never edit the embedded copy inside the script.
 
 Flags: `--profile completo|terminal|dev|mobile`, `--categories a,b,c`, `--all`, `--yes`, `--dry-run`, `--list`, `--verbose`. Env: `MACENV_USE_GUM`, `MACENV_GUM_VERSION`, `NO_COLOR`. Never run a real install during development — `--dry-run` only; config generation can be tested against a fake `$HOME` (source the script minus the final `parse_args`/`main` lines).
 
-`.github/workflows/ci.yml` runs all of the above on every PR plus generated-config assertions (`.zshrc` and both `starship.toml` presets, in a fake `$HOME`). Two traps when adding steps there: **`! grep -q …` never fails a step** — with `set -e` bash does not exit when the status is inverted by `!`, so absence must be asserted through the `ausente()` helper; and `starship print-config` **exits 0 even on invalid TOML**, so validity is detected by grepping `Unable to parse` on stderr. New assertions are worth mutation-testing (plant the regression, confirm the step goes red) — that is how both traps were found.
+`.github/workflows/ci.yml` just calls `./tools/gate.sh` — every assertion lives there (shellcheck PINNED at v0.10.0; the floating brew version was the root cause of local≠CI drift), including the generated-config assertions (`.zshrc` and both `starship.toml` presets, in a fake `$HOME`). Two traps when adding steps there: **`! grep -q …` never fails a step** — with `set -e` bash does not exit when the status is inverted by `!`, so absence must be asserted through the `ausente()` helper; and `starship print-config` **exits 0 even on invalid TOML**, so validity is detected by grepping `Unable to parse` on stderr. New assertions are worth mutation-testing (plant the regression, confirm the step goes red) — that is how both traps were found.
 
 ## Architecture
 

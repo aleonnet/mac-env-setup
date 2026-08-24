@@ -2,6 +2,29 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## v4.4.0 — 2026-08-24
+
+### Adicionado
+- **Portão de qualidade local (`tools/gate.sh`)** — local e CI rodam o MESMO
+  script: sintaxe no bash 3.2, **shellcheck fixado em v0.10.0** (a versão
+  flutuante do brew era a causa raiz de "passou local, quebrou no CI"),
+  dry-runs, pipe-safety, PTY, configs em HOME falso, presets do starship com
+  patch idempotente, suíte do iTerm2 e verificação dos templates embutidos.
+  As duas armadilhas históricas (`! grep` sob `set -e`; `starship
+  print-config` saindo 0 com TOML inválido) moram nele. Asserções novas
+  passaram por teste de mutação (3 regressões plantadas, 3 vermelhas).
+- **Fontes segmentadas onde há ganho real** (`templates/` + `tools/embed.sh`):
+  o `starship.toml` de fallback (78 linhas, agora com lint de TOML e diff
+  próprio) e o patcher python de fonte dos editores (15 linhas, `py_compile`)
+  viram arquivos-fonte, embutidos no script pelos delimitadores dos próprios
+  heredocs — `./tools/embed.sh --check` reprova deriva, no portão e no CI.
+  Payload dinâmico (blocos do `.zshrc`) fica no script, onde a lógica que o
+  escolhe mora: medição mostrou que segmentá-lo só adicionaria maquinário.
+
+### Alterado
+- `ci.yml` reduzido a chamar `./tools/gate.sh` — a extração do TOML embutido
+  por `awk` morreu junto (o portão lê a fonte em `templates/`).
+
 ## [4.3.2] - 2026-07-26
 
 ### Fixed

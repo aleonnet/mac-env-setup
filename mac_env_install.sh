@@ -13,7 +13,7 @@
 # =============================================================================
 set -euo pipefail
 
-MACENV_VERSION="4.3.2"
+MACENV_VERSION="4.4.0"
 MACENV_RAW_URL="https://raw.githubusercontent.com/aleonnet/mac-env-setup/main/mac_env_install.sh"
 
 # -----------------------------------------------------------------------------
@@ -2447,7 +2447,7 @@ write_starship_config() {
         ui_success "starship.toml escrito (preset ${STARSHIP_PRESET} + venv Python na barra)"
         return 0
     fi
-    cat > "$tmp" <<'EOF'
+    cat > "$tmp" <<'MACENV_STARSHIP_FALLBACK'
 # starship.toml — gerado por mac_env_install.sh (v3) · Event Horizon powerline (fallback)
 # Requer Nerd Font no terminal (setas de powerline e símbolos de linguagem)
 "$schema" = 'https://starship.rs/config-schema.json'
@@ -2526,7 +2526,7 @@ cyan = "#00e5cc"
 red = "#e63946"
 crust = "#120b02"
 surface = "#2b1f0a"
-EOF
+MACENV_STARSHIP_FALLBACK
     backup_and_install_file "$tmp" "$HOME/.config/starship.toml"
     ui_success "starship.toml escrito (fallback Event Horizon — sem rede para o preset)"
     return 0

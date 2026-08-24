@@ -94,3 +94,18 @@ Variáveis de ambiente: `MACENV_USE_GUM` (`auto`/`1`/`0`), `MACENV_GUM_VERSION` 
 ## Pós-instalação
 
 O relatório final lista os passos específicos da sua seleção (abrir Docker.app na primeira vez, `supabase login`, etc.). Recarregue o shell com `exec zsh`.
+
+## Desenvolvimento
+
+A entrega é um arquivo único (`mac_env_install.sh`), mas a fábrica é
+segmentada onde há ganho real: os payloads estáticos vivem em `templates/`
+(`starship_fallback.toml`, `editor_font_patch.py`) e são embutidos no script
+por `./tools/embed.sh` (`--check` reprova deriva). O portão de qualidade —
+o MESMO que o CI executa — é um comando:
+
+```bash
+./tools/gate.sh
+```
+
+Editou algo em `templates/`? `./tools/embed.sh` antes de testar. Nunca edite
+a cópia embutida dentro do script.
